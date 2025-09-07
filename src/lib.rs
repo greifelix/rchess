@@ -1,6 +1,12 @@
 mod utils;
 
+/// Maybe extract the render logic here later (Movement, highlighting and such)
+pub mod render_logic {
+    use bevy::prelude::*;
+}
+
 pub mod game_logic {
+
     use bevy::prelude::*;
 
     use crate::utils::idx_to_coordinates;
@@ -75,6 +81,7 @@ pub mod game_logic {
 
             self.board[to_row][to_col] = self.board[from_row][from_col].take();
 
+            // Todo: Replace filter with find or something
             query
                 .iter_mut()
                 .filter(|(ent, name, t)| name.as_str() == to_be_moved)
@@ -91,10 +98,57 @@ pub mod game_logic {
         }
 
         pub fn move_is_valid(&self, from_tile: (usize, usize), to_tile: (usize, usize)) -> bool {
-            true
+            self.calculate_valid_moves(from_tile).contains(&to_tile)
         }
 
+        pub fn calculate_valid_moves(&self, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+            let (from_row, from_col) = from_tile;
 
+            if let Some(fig) = self.board[from_row][from_col] {
+                match fig.player_color {
+                    PlayerColor::White => match fig.fig_type {
+                        FigType::Pawn => white_pawn_moves(&self.board, from_tile),
+                        FigType::Rook => {
+                            vec![]
+                        }
+                        FigType::Knight => {
+                            vec![]
+                        }
+                        FigType::Bishop => {
+                            vec![]
+                        }
+                        FigType::Queen => {
+                            vec![]
+                        }
+                        FigType::King => {
+                            vec![]
+                        }
+                    },
+                    PlayerColor::Black => match fig.fig_type {
+                        FigType::Pawn => {
+                            vec![]
+                        }
+                        FigType::Rook => {
+                            vec![]
+                        }
+                        FigType::Knight => {
+                            vec![]
+                        }
+                        FigType::Bishop => {
+                            vec![]
+                        }
+                        FigType::Queen => {
+                            vec![]
+                        }
+                        FigType::King => {
+                            vec![]
+                        }
+                    },
+                }
+            } else {
+                vec![]
+            }
+        }
 
         /// Pick a figure to be moved on the next click to the position
         /// In case no valid tile is clicked, none will be returned
@@ -291,4 +345,44 @@ pub mod game_logic {
             Self { board: board }
         }
     }
+
+    pub fn white_pawn_moves(
+        board: &[[Option<Figure>; 8]; 8],
+        from_tile: (usize, usize),
+    ) -> Vec<(usize, usize)> {
+        let (from_row, from_col) = from_tile;
+        let mut out = Vec::<(usize, usize)>::new();
+        // 1. Move one up, if there is no other piece (including piece itself, in case of boundary wrap)
+        let (r, c) = ((from_row + 1).min(7), from_col);
+        if board[r][c].is_none() {
+            out.push((r, c));
+        }
+
+        // 2. Move two up, if there is no other piece in the way, and we start at row 1
+        if from_row == 1 && board[from_row + 1][c].is_none() && board[from_row + 2][c].is_none() {
+            out.push((from_row + 2, from_col));
+        }
+        // 3. Move diagonal right /left, in case there is black piece
+        let (r, c) = ((from_row + 1).min(7), (from_col + 1).min(7));
+        if r != from_row && c != from_col {
+            if let Some(f) = board[r][c]
+                && f.player_color == PlayerColor::Black
+            {
+                out.push((r, c));
+            }
+        }
+        // 4. Move diagonally left, in case there is a black piece
+        let (r, c) = ((from_row + 1).min(7), (from_col.saturating_sub(1)));
+        if r != from_row && c != from_col {
+            if let Some(f) = board[r][c]
+                && f.player_color == PlayerColor::Black
+            {
+                out.push((r, c));
+            }
+        }
+
+        out
+    }
+
+    // Ensure boundaries
 }
