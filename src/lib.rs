@@ -112,12 +112,9 @@ pub mod game_logic {
                         FigType::Knight => {
                             vec![]
                         }
-                        FigType::Bishop => {
-                            bishop_moves(&self.board, from_tile)
-                        }
+                        FigType::Bishop => bishop_moves(&self.board, from_tile),
                         FigType::Queen => {
-                            // Just chain bishop and rook
-                            vec![]
+                            queen_moves(&self.board, from_tile)
                         }
                         FigType::King => {
                             vec![]
@@ -129,11 +126,9 @@ pub mod game_logic {
                         FigType::Knight => {
                             vec![]
                         }
-                        FigType::Bishop => {
-                            bishop_moves(&self.board, from_tile)
-                        }
+                        FigType::Bishop => bishop_moves(&self.board, from_tile),
                         FigType::Queen => {
-                            vec![]
+                            queen_moves(&self.board, from_tile)
                         }
                         FigType::King => {
                             vec![]
@@ -536,5 +531,12 @@ pub mod game_logic {
         }
 
         out
+    }
+
+    pub fn queen_moves(
+        board: &[[Option<Figure>; 8]; 8],
+        from_tile: (usize, usize),
+    ) -> Vec<(usize, usize)> {
+        [rook_moves(board, from_tile), bishop_moves(board, from_tile)].concat()
     }
 }
