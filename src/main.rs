@@ -10,14 +10,14 @@ use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 mod utils;
-use rchess::GameLogic::{self, FigType, Figure};
+use rchess::game_logic::{self, FigType, Figure};
 
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, MeshPickingPlugin))
         .add_plugins(EguiPlugin::default())
         .add_plugins(WorldInspectorPlugin::new())
-        .insert_resource(GameLogic::GameState::new())
+        .insert_resource(game_logic::GameState::new())
         .add_systems(Startup, (environment_setup, board_setup).chain())
         .add_systems(Update, (draw_mesh_intersections,).chain())
         .add_systems(Update, surface_picking_system)
@@ -84,12 +84,10 @@ fn board_setup(
     let square_size = 0.05;
 
     // Spawn the pickable coponents
-
     for (row, _row_c) in ('1'..='8').enumerate() {
         for (col, _col_c) in ('a'..='h').enumerate() {
             let (row_offset, col_offset) = utils::idx_to_coordinates(row, col);
 
-  
             commands.spawn((
                 Mesh3d(meshes.add(Plane3d::default().mesh().size(square_size, square_size))),
                 Transform::from_xyz(col_offset, 0.01, row_offset),
@@ -102,73 +100,56 @@ fn board_setup(
     }
 }
 
-/// Kills target asset
-fn kill_helper(
-    commands: &mut Commands,
-    target_name: &str,
-    piece_query: &mut Query<(Entity, &Name, &mut Transform)>,
-) {
-    for (e, n, _t) in piece_query {
-        if n.as_str() == target_name {
-            commands.entity(e).despawn();
-        }
-    }
-}
-
 fn surface_picking_system(
-    mut commands: Commands, // commands.entity(entity).despawn();
+    mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut click_events: EventReader<Pointer<Click>>,
     tile_query: Query<(Entity, &Name, &MeshMaterial3d<StandardMaterial>), With<SurfaceTile>>,
     mut piece_query: Query<(Entity, &Name, &mut Transform)>,
-    mut game_state: ResMut<GameLogic::GameState>,
+    mut game_state: ResMut<game_logic::GameState>,
     mut prev_pick: Local<Option<(Figure, usize, usize)>>,
 ) {
     for click in click_events.read().take(1) {
-        if let Ok((ent, name, mat)) = tile_query.get(click.target) {
+        if let Ok((tile_ent, tile_name, tile_mat)) = tile_query.get(click.target) {
             reset_tile_highlights(&mut materials, &tile_query);
-            let (row, col) = utils::tile_to_indices(name.as_str());
+            let (to_row, to_col) = utils::tile_to_indices(tile_name.as_str());
 
             // Case 1: We previously picked a valid figure and are about to move the figure now
-            if let Some((p_fig, p_row, p_col)) = *prev_pick {
-                if game_state.move_is_valid((p_row, p_col), (row, col)) {
-                    // If we move to an occupied field we kill
-                    if let Some(target_name) = game_state.get_figure_name(row, col) {
-                        kill_helper(&mut commands, target_name, &mut piece_query);
-                    }
-                    // game_state.move_figure_and_asset()
-
-                    // game_state.despawn_entity_on_field(commands, piece_query, row, col);
-
-                    *prev_pick = None;
-
-                    // Add move logig
-                }
+            if let Some((picked_pigure, from_row, from_col)) = *prev_pick {
+                game_state.move_figure_and_asset(
+                    &mut commands,
+                    picked_pigure.ass_name,
+                    (from_row, from_col),
+                    (to_row, to_col),
+                    &mut piece_query,
+                );
+                *prev_pick = None;
             }
             // Case 2: We did not yet pick a valid figure and will pick the figure to be moved now
             else {
-                if let Some(material) = materials.get_mut(&mat.0) {
+                //1. Highlight picked filed
+                if let Some(material) = materials.get_mut(&tile_mat.0) {
                     material.base_color = Color::srgba(1.0, 0.0, 0.0, 0.6); // modifies existing
                 }
 
-                if game_state.pick_is_valid(row, col) {
-                    let maybe_picked_figure = game_state.get_fig_on_tile(row, col);
-                    if let Some(fig) = maybe_picked_figure {
-                        *prev_pick = Some((fig, row, col));
-                    }
+                // 2. Highlight the valid fields the piece can move to in case a figure was picked (in another color)
+                // (Use the tile query here, to filter by the names of the files we need / write indices to tile name function maybe)
+
+                // // Dummy
+                // for (e, n, m) in tile_query {
+                //     if n.as_str() == "Tile_1_0" || n.as_str() == "Tile_7_7" {
+                //         if let Some(material) = materials.get_mut(&m.0) {
+                //             material.base_color = Color::srgba(1.0, 0.0, 0.0, 0.6); // modifies existing
+                //         }
+                //     }
+                // }
+                // // End dummy
+
+                let maybe_picked_figure = game_state.get_fig_on_tile(to_row, to_col);
+                if let Some(fig) = maybe_picked_figure {
+                    *prev_pick = Some((fig, to_row, to_col));
                 }
             }
-
-            // println!("Clicked tile {}", name.as_str());
-
-            // if let Some(selected_figure) = game_state.get_figure_name(row, col) {
-            //     println!("Figure on tile is{}", selected_figure);
-
-            //     piece_query
-            //         .iter_mut()
-            //         .filter(|(e, q_name, pos)| q_name.as_str() == selected_figure)
-            //         .for_each(|(_, _, mut pos)| pos.translation += Vec3::new(0.00, 0.00, 0.05));
-            // }
         }
     }
 }
@@ -184,11 +165,7 @@ fn reset_tile_highlights(
     }
 }
 
-fn draw_mesh_intersections(
-    pointers: Query<&PointerInteraction>,
-    mut gizmos: Gizmos,
-    
-) {
+fn draw_mesh_intersections(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos) {
     for (point, normal) in pointers
         .iter()
         .filter_map(|interaction| interaction.get_nearest_hit())
@@ -197,5 +174,4 @@ fn draw_mesh_intersections(
         gizmos.sphere(point, 0.05, RED_500);
         gizmos.arrow(point, point + normal.normalize() * 0.5, PINK_100);
     }
-
 }

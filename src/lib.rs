@@ -1,6 +1,6 @@
 mod utils;
 
-pub mod GameLogic {
+pub mod game_logic {
     use bevy::prelude::*;
 
     use crate::utils::idx_to_coordinates;
@@ -39,41 +39,51 @@ pub mod GameLogic {
             }
         }
 
-        pub fn despawn_entity_on_field(
+        /// Kills target asset
+        pub fn kill_helper(
             &self,
             commands: &mut Commands,
-            query: &mut Query<(Entity, &Name)>,
-            row: usize,
-            col: usize,
+            target_name: &str,
+            piece_query: &mut Query<(Entity, &Name, &mut Transform)>,
         ) {
-            if let Some(to_be_killed) = self.get_fig_on_tile(row, col) {
-                query
-                    .iter()
-                    .filter(|(ent, name)| name.as_str() == to_be_killed.ass_name)
-                    .for_each(|(ent, _name)| {
-                        commands.entity(ent).despawn();
-                    });
+            for (e, n, _t) in piece_query {
+                if n.as_str() == target_name {
+                    commands.entity(e).despawn();
+                }
             }
         }
 
+        /// Move figure potentially despawn and update game state
         pub fn move_figure_and_asset(
             &mut self,
+            commands: &mut Commands,
             to_be_moved: &str,
-            row: usize,
-            col: usize,
+            from_tile: (usize, usize),
+            to_tile: (usize, usize),
             query: &mut Query<(Entity, &Name, &mut Transform)>,
         ) {
+            if !self.move_is_valid(from_tile, to_tile) {
+                return;
+            }
+
+            let (from_row, from_col) = from_tile;
+            let (to_row, to_col) = to_tile;
+
+            if let Some(target) = self.board[to_row][to_col].take() {
+                self.kill_helper(commands, target.ass_name, query);
+            }
+
+            self.board[to_row][to_col] = self.board[from_row][from_col].take();
+
             query
                 .iter_mut()
                 .filter(|(ent, name, t)| name.as_str() == to_be_moved)
                 .for_each(|(ent, name, mut t)| {
-                    let (x, z) = idx_to_coordinates(row, col);
+                    let (z, x) = idx_to_coordinates(to_row, to_col);
 
                     t.as_mut().translation.x = x;
                     t.as_mut().translation.z = z;
                 });
-
-            // TODO: Maybe call kill helper from here?
         }
 
         pub fn get_fig_on_tile(&self, row: usize, col: usize) -> Option<Figure> {
@@ -84,9 +94,7 @@ pub mod GameLogic {
             true
         }
 
-        pub fn pick_is_valid(&self, row: usize, col: usize) -> bool {
-            true
-        }
+
 
         /// Pick a figure to be moved on the next click to the position
         /// In case no valid tile is clicked, none will be returned
