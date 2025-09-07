@@ -108,9 +108,7 @@ pub mod game_logic {
                 match fig.player_color {
                     PlayerColor::White => match fig.fig_type {
                         FigType::Pawn => white_pawn_moves(&self.board, from_tile),
-                        FigType::Rook => {
-                            vec![]
-                        }
+                        FigType::Rook => rook_moves(&self.board, from_tile),
                         FigType::Knight => {
                             vec![]
                         }
@@ -118,6 +116,7 @@ pub mod game_logic {
                             vec![]
                         }
                         FigType::Queen => {
+                            // Just chain bishop and rook
                             vec![]
                         }
                         FigType::King => {
@@ -126,10 +125,10 @@ pub mod game_logic {
                     },
                     PlayerColor::Black => match fig.fig_type {
                         FigType::Pawn => {
-                            vec![]
+                            black_pawn_moves(&self.board, from_tile)
                         }
                         FigType::Rook => {
-                            vec![]
+                            rook_moves(&self.board, from_tile)
                         }
                         FigType::Knight => {
                             vec![]
@@ -384,5 +383,101 @@ pub mod game_logic {
         out
     }
 
-    // Ensure boundaries
+    pub fn black_pawn_moves(
+        board: &[[Option<Figure>; 8]; 8],
+        from_tile: (usize, usize),
+    ) -> Vec<(usize, usize)> {
+        let (from_row, from_col) = from_tile;
+        let mut out = Vec::<(usize, usize)>::new();
+        // 1. Move one down, if there is no other piece (including piece itself, in case of boundary wrap)
+        let (r, c) = (from_row.saturating_sub(1), from_col);
+        if board[r][c].is_none() {
+            out.push((r, c));
+        }
+
+        // 2. Move two up, if there is no other piece in the way, and we start at row 1
+        if from_row == 6 && board[from_row - 1][c].is_none() && board[from_row - 2][c].is_none() {
+            out.push((from_row - 2, from_col));
+        }
+        // 3. Move diagonal right /left, in case there is white piece
+        let (r, c) = (from_row.saturating_sub(1), (from_col + 1).min(7));
+        if r != from_row && c != from_col {
+            if let Some(f) = board[r][c]
+                && f.player_color == PlayerColor::White
+            {
+                out.push((r, c));
+            }
+        }
+        // 4. Move diagonally left, in case there is a white piece
+        let (r, c) = (from_row.saturating_sub(1), (from_col.saturating_sub(1)));
+        if r != from_row && c != from_col {
+            if let Some(f) = board[r][c]
+                && f.player_color == PlayerColor::White
+            {
+                out.push((r, c));
+            }
+        }
+
+        out
+    }
+
+    pub fn rook_moves(
+        board: &[[Option<Figure>; 8]; 8],
+        from_tile: (usize, usize),
+    ) -> Vec<(usize, usize)> {
+        let (from_row, from_col) = from_tile;
+        let mut out: Vec<(usize, usize)> = Vec::new();
+        if let Some(fig) = board[from_row][from_col] {
+            let rook_color = fig.player_color;
+
+            // To the right; stop when encounter
+            for r_next in (from_row + 1)..=7 {
+                if let Some(block_fig) = board[r_next][from_col] {
+                    if rook_color != block_fig.player_color {
+                        out.push((r_next, from_col));
+                    }
+                    break;
+                } else {
+                    out.push((r_next, from_col));
+                }
+            }
+            // To the left, stop when encounter
+            for r_next in (0..from_row).rev() {
+                if let Some(block_fig) = board[r_next][from_col] {
+                    if rook_color != block_fig.player_color {
+                        out.push((r_next, from_col));
+                    }
+                    break;
+                } else {
+                    out.push((r_next, from_col));
+                }
+            }
+
+            // To the top; stop when encounter
+            for c_next in (from_col + 1)..=7 {
+                if let Some(block_fig) = board[from_row][c_next] {
+                    if rook_color != block_fig.player_color {
+                        out.push((from_row, c_next));
+                    }
+                    break;
+                } else {
+                    out.push((from_row, c_next));
+                }
+            }
+
+            // To the bottom; stop when encounter
+            for c_next in (0..from_col).rev() {
+                if let Some(block_fig) = board[from_row][c_next] {
+                    if rook_color != block_fig.player_color {
+                        out.push((from_row, c_next));
+                    }
+                    break;
+                } else {
+                    out.push((from_row, c_next));
+                }
+            }
+        }
+
+        out
+    }
 }
