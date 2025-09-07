@@ -113,7 +113,7 @@ pub mod game_logic {
                             vec![]
                         }
                         FigType::Bishop => {
-                            vec![]
+                            bishop_moves(&self.board, from_tile)
                         }
                         FigType::Queen => {
                             // Just chain bishop and rook
@@ -124,17 +124,13 @@ pub mod game_logic {
                         }
                     },
                     PlayerColor::Black => match fig.fig_type {
-                        FigType::Pawn => {
-                            black_pawn_moves(&self.board, from_tile)
-                        }
-                        FigType::Rook => {
-                            rook_moves(&self.board, from_tile)
-                        }
+                        FigType::Pawn => black_pawn_moves(&self.board, from_tile),
+                        FigType::Rook => rook_moves(&self.board, from_tile),
                         FigType::Knight => {
                             vec![]
                         }
                         FigType::Bishop => {
-                            vec![]
+                            bishop_moves(&self.board, from_tile)
                         }
                         FigType::Queen => {
                             vec![]
@@ -474,6 +470,67 @@ pub mod game_logic {
                     break;
                 } else {
                     out.push((from_row, c_next));
+                }
+            }
+        }
+
+        out
+    }
+
+    pub fn bishop_moves(
+        board: &[[Option<Figure>; 8]; 8],
+        from_tile: (usize, usize),
+    ) -> Vec<(usize, usize)> {
+        let (from_row, from_col) = from_tile;
+        let mut out: Vec<(usize, usize)> = Vec::new();
+        if let Some(fig) = board[from_row][from_col] {
+            let bishop_color = fig.player_color;
+
+            // To the top right; stop when encounter
+            for (r_next, c_next) in ((from_row + 1)..=7).zip((from_col + 1)..=7) {
+                if let Some(block_fig) = board[r_next][c_next] {
+                    if bishop_color != block_fig.player_color {
+                        out.push((r_next, c_next));
+                    }
+                    break;
+                } else {
+                    out.push((r_next, c_next));
+                }
+            }
+
+            // To the bottom left; stop when encounter
+            for (r_next, c_next) in (0..from_row).rev().zip((0..from_col).rev()) {
+                if let Some(block_fig) = board[r_next][c_next] {
+                    if bishop_color != block_fig.player_color {
+                        out.push((r_next, c_next));
+                    }
+                    break;
+                } else {
+                    out.push((r_next, c_next));
+                }
+            }
+
+            // To the top left; stop when encounter
+            for (r_next, c_next) in ((from_row + 1)..=7).zip((0..from_col).rev()) {
+                if let Some(block_fig) = board[r_next][c_next] {
+                    if bishop_color != block_fig.player_color {
+                        out.push((r_next, c_next));
+                    }
+                    break;
+                } else {
+                    out.push((r_next, c_next));
+                }
+            }
+
+            // To the bottom right; stop when encounter
+            for (r_next, c_next) in ((0..from_row).rev()).zip((from_col + 1)..=7) {
+                if let Some(block_fig) = board[r_next][c_next] {
+                    if bishop_color != block_fig.player_color {
+                        out.push((r_next, c_next));
+                    }
+                    break;
+                } else {
+                    out.push((r_next, c_next));
                 }
             }
         }
