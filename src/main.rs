@@ -92,8 +92,8 @@ fn board_setup(
                 Mesh3d(meshes.add(Plane3d::default().mesh().size(square_size, square_size))),
                 Transform::from_xyz(col_offset, 0.01, row_offset),
                 Name::new(format!("Tile_{}_{}", row, col)),
-                // MeshMaterial3d(materials.add(Color::NONE)),// For release version
-                MeshMaterial3d(materials.add(Color::srgba(0.2, 0.5, 0.0, 0.6))),
+                MeshMaterial3d(materials.add(Color::NONE)),// For release version
+                // MeshMaterial3d(materials.add(Color::srgba(0.2, 0.5, 0.0, 0.6))),
                 SurfaceTile,
             ));
         }
@@ -112,7 +112,7 @@ fn surface_picking_system(
     for click in click_events.read().take(1) {
         if let Ok((tile_ent, tile_name, tile_mat)) = tile_query.get(click.target) {
             reset_tile_highlights(&mut materials, &tile_query);
-            let (to_row, to_col) = utils::tile_to_indices(tile_name.as_str());
+            let (clicked_row, clicked_col) = utils::tile_to_indices(tile_name.as_str());
 
             // Case 1: We previously picked a valid figure and are about to move the figure now
             if let Some((picked_pigure, from_row, from_col)) = *prev_pick {
@@ -120,7 +120,7 @@ fn surface_picking_system(
                     &mut commands,
                     picked_pigure.ass_name,
                     (from_row, from_col),
-                    (to_row, to_col),
+                    (clicked_row, clicked_col),
                     &mut piece_query,
                 );
                 *prev_pick = None;
@@ -134,20 +134,28 @@ fn surface_picking_system(
 
                 // 2. Highlight the valid fields the piece can move to in case a figure was picked (in another color)
                 // (Use the tile query here, to filter by the names of the files we need / write indices to tile name function maybe)
+                let move_list: Vec<String> = game_state
+                    .calculate_valid_moves((clicked_row, clicked_col))
+                    .iter()
+                    .map(|(r, c)| format!("Tile_{r}_{c}"))
+                    .collect();
 
                 // // Dummy
-                // for (e, n, m) in tile_query {
-                //     if n.as_str() == "Tile_1_0" || n.as_str() == "Tile_7_7" {
-                //         if let Some(material) = materials.get_mut(&m.0) {
-                //             material.base_color = Color::srgba(1.0, 0.0, 0.0, 0.6); // modifies existing
-                //         }
-                //     }
-                // }
+                for (e, n, m) in tile_query {
+                    if move_list.contains(&n.as_str().to_string()) {
+                        if let Some(material) = materials.get_mut(&m.0) {
+                            material.base_color = Color::srgba(0.0, 1.0, 0.0, 0.6); // modifies existing
+                        }
+                    }
+
+                    // if n.as_str() == "Tile_1_0" || n.as_str() == "Tile_7_7" {
+                    // }
+                }
                 // // End dummy
 
-                let maybe_picked_figure = game_state.get_fig_on_tile(to_row, to_col);
+                let maybe_picked_figure = game_state.get_fig_on_tile(clicked_row, clicked_col);
                 if let Some(fig) = maybe_picked_figure {
-                    *prev_pick = Some((fig, to_row, to_col));
+                    *prev_pick = Some((fig, clicked_row, clicked_col));
                 }
             }
         }
@@ -160,7 +168,8 @@ fn reset_tile_highlights(
 ) {
     for (e, n, mat) in tile_query {
         if let Some(material) = materials.get_mut(&mat.0) {
-            material.base_color = Color::srgba(0.2, 0.5, 0.0, 0.6); // modifies existing
+            // material.base_color = Color::srgba(0.2, 0.5, 0.0, 0.6); // modifies existing
+            material.base_color = Color::NONE;
         }
     }
 }
