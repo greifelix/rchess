@@ -109,13 +109,11 @@ pub mod game_logic {
                     PlayerColor::White => match fig.fig_type {
                         FigType::Pawn => white_pawn_moves(&self.board, from_tile),
                         FigType::Rook => rook_moves(&self.board, from_tile),
-                        FigType::Knight => {
-                            vec![]
-                        }
+                        FigType::Knight => 
+                            knight_moves(&self.board, from_tile),
+                        
                         FigType::Bishop => bishop_moves(&self.board, from_tile),
-                        FigType::Queen => {
-                            queen_moves(&self.board, from_tile)
-                        }
+                        FigType::Queen => queen_moves(&self.board, from_tile),
                         FigType::King => {
                             vec![]
                         }
@@ -123,13 +121,9 @@ pub mod game_logic {
                     PlayerColor::Black => match fig.fig_type {
                         FigType::Pawn => black_pawn_moves(&self.board, from_tile),
                         FigType::Rook => rook_moves(&self.board, from_tile),
-                        FigType::Knight => {
-                            vec![]
-                        }
+                        FigType::Knight => knight_moves(&self.board, from_tile),
                         FigType::Bishop => bishop_moves(&self.board, from_tile),
-                        FigType::Queen => {
-                            queen_moves(&self.board, from_tile)
-                        }
+                        FigType::Queen => queen_moves(&self.board, from_tile),
                         FigType::King => {
                             vec![]
                         }
@@ -538,5 +532,63 @@ pub mod game_logic {
         from_tile: (usize, usize),
     ) -> Vec<(usize, usize)> {
         [rook_moves(board, from_tile), bishop_moves(board, from_tile)].concat()
+    }
+
+    pub fn knight_moves(
+        board: &[[Option<Figure>; 8]; 8],
+        from_tile: (usize, usize),
+    ) -> Vec<(usize, usize)> {
+        let mut cands: Vec<(usize, usize)> = Vec::new();
+        let (from_row, from_col) = from_tile;
+        if let Some(fig) = board[from_row][from_col] {
+            let knight_color = fig.player_color;
+
+            // 2-hoch 1-links/rechts
+            if from_row + 2 < 8 {
+                if from_col + 1 < 8 {
+                    cands.push((from_row + 2, from_col + 1));
+                }
+                if from_col.saturating_sub(1) < from_col {
+                    cands.push((from_row + 2, from_col - 1));
+                }
+            }
+            // 2-runter 1-links/rechts
+            if from_row.saturating_sub(2) + 2 == from_row {
+                if from_col + 1 < 8 {
+                    cands.push((from_row - 2, from_col + 1));
+                }
+                if from_col.saturating_sub(1) < from_col {
+                    cands.push((from_row - 2, from_col - 1));
+                }
+            }
+            // 2-rechts 1-oben/unte
+            if from_col + 2 < 8 {
+                if from_row + 1 < 8 {
+                    cands.push((from_row + 1, from_col + 2));
+                }
+                if from_row.saturating_sub(1) < from_row {
+                    cands.push((from_row - 1, from_col + 2));
+                }
+            }
+
+            // 2 links 1-oben/unten
+            if from_col.saturating_sub(2) + 2 == from_col {
+                if from_row + 1 < 8 {
+                    cands.push((from_row + 1, from_col - 2));
+                }
+                if from_row.saturating_sub(1) < from_row {
+                    cands.push((from_row - 1, from_col - 2));
+                }
+            }
+            cands
+                .into_iter()
+                .filter(|(r, c)| match board[*r][*c] {
+                    Some(block_fig) => knight_color != block_fig.player_color,
+                    None => true,
+                })
+                .collect()
+        } else {
+            vec![]
+        }
     }
 }
