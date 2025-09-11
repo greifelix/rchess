@@ -103,31 +103,17 @@ pub mod game_logic {
 
         pub fn calculate_valid_moves(&self, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
             let (from_row, from_col) = from_tile;
-
             if let Some(fig) = self.board[from_row][from_col] {
-                match fig.player_color {
-                    PlayerColor::White => match fig.fig_type {
-                        FigType::Pawn => white_pawn_moves(&self.board, from_tile),
-                        FigType::Rook => rook_moves(&self.board, from_tile),
-                        FigType::Knight => 
-                            knight_moves(&self.board, from_tile),
-                        
-                        FigType::Bishop => bishop_moves(&self.board, from_tile),
-                        FigType::Queen => queen_moves(&self.board, from_tile),
-                        FigType::King => {
-                            vec![]
-                        }
+                match fig.fig_type {
+                    FigType::Pawn => match fig.player_color {
+                        PlayerColor::Black => black_pawn_moves(&self.board, from_tile),
+                        PlayerColor::White => white_pawn_moves(&self.board, from_tile),
                     },
-                    PlayerColor::Black => match fig.fig_type {
-                        FigType::Pawn => black_pawn_moves(&self.board, from_tile),
-                        FigType::Rook => rook_moves(&self.board, from_tile),
-                        FigType::Knight => knight_moves(&self.board, from_tile),
-                        FigType::Bishop => bishop_moves(&self.board, from_tile),
-                        FigType::Queen => queen_moves(&self.board, from_tile),
-                        FigType::King => {
-                            vec![]
-                        }
-                    },
+                    FigType::Rook => rook_moves(&self.board, from_tile),
+                    FigType::Knight => knight_moves(&self.board, from_tile),
+                    FigType::Bishop => bishop_moves(&self.board, from_tile),
+                    FigType::Queen => queen_moves(&self.board, from_tile),
+                    FigType::King => king_moves(&self.board, from_tile),
                 }
             } else {
                 vec![]
@@ -584,6 +570,66 @@ pub mod game_logic {
                 .into_iter()
                 .filter(|(r, c)| match board[*r][*c] {
                     Some(block_fig) => knight_color != block_fig.player_color,
+                    None => true,
+                })
+                .collect()
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn king_moves(
+        board: &[[Option<Figure>; 8]; 8],
+        from_tile: (usize, usize),
+    ) -> Vec<(usize, usize)> {
+        let (r, c) = from_tile;
+        let mut cands: Vec<(usize, usize)> = Vec::new();
+        if let Some(fig) = board[r][c] {
+            let king_color = fig.player_color;
+
+            // Rechts
+            if c + 1 < 8 {
+                cands.push((r, c + 1));
+            }
+
+            // Oben-Rechts
+            if r + 1 < 8 && c + 1 < 8 {
+                cands.push((r + 1, c + 1));
+            }
+
+            // Oben
+            if r + 1 < 8 {
+                cands.push((r + 1, c));
+            }
+
+            // Oben links
+            if r + 1 < 8 && c.saturating_sub(1) + 1 == c {
+                cands.push((r + 1, c - 1));
+            }
+
+            // Links
+            if c.saturating_sub(1) + 1 == c {
+                cands.push((r, c - 1));
+            }
+
+            // Unten Links
+            if c.saturating_sub(1) + 1 == c && r.saturating_sub(1) + 1 == r {
+                cands.push((r - 1, c - 1));
+            }
+            // Unten
+            if r.saturating_sub(1) + 1 == r {
+                cands.push((r - 1, c));
+            }
+            // Unten rechts
+
+            if r.saturating_sub(1) + 1 == r && c + 1 < 8 {
+                cands.push((r - 1, c + 1));
+            }
+
+            cands
+                .into_iter()
+                .filter(|(r, c)| match board[*r][*c] {
+                    Some(block_fig) => king_color != block_fig.player_color,
                     None => true,
                 })
                 .collect()
