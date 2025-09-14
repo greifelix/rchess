@@ -10,6 +10,7 @@ pub mod game_logic {
     use std::cmp::Ordering;
 
     use bevy::prelude::*;
+    use bevy_egui::egui::Order;
     use itertools::{Itertools, iproduct};
 
     use crate::utils::idx_to_coordinates;
@@ -61,6 +62,47 @@ pub mod game_logic {
         pub player_turn: PlayerColor,
         pub chosen_figure: Option<(Figure, usize, usize)>,
         pub possible_moves: Option<PossibleMoves>,
+    }
+
+    /// Get the position of the figure, relative to the (own) king
+    pub fn pos_rel_to_king(fig_pos: (usize, usize), king_pos: (usize, usize)) -> PosRelToKing {
+        let (king_row, king_col) = king_pos;
+        let (fig_row, fig_col) = fig_pos;
+        match (fig_row.cmp(&king_row), fig_col.cmp(&king_col)) {
+            (Ordering::Equal, Ordering::Greater) => PosRelToKing::Right,
+            (Ordering::Equal, Ordering::Less) => PosRelToKing::Left,
+            (Ordering::Greater, Ordering::Equal) => PosRelToKing::Above,
+            (Ordering::Less, Ordering::Equal) => PosRelToKing::Below,
+            (Ordering::Greater, Ordering::Greater) => {
+                if fig_row - king_row == fig_col - king_col {
+                    PosRelToKing::UpRight
+                } else {
+                    PosRelToKing::Unrelated
+                }
+            }
+            (Ordering::Less, Ordering::Less) => {
+                if king_row - fig_row == king_col - fig_col {
+                    PosRelToKing::DownLeft
+                } else {
+                    PosRelToKing::Unrelated
+                }
+            }
+            (Ordering::Greater, Ordering::Less) => {
+                if fig_row - king_row == king_col - fig_col {
+                    PosRelToKing::UpLeft
+                } else {
+                    PosRelToKing::Unrelated
+                }
+            }
+            (Ordering::Less, Ordering::Greater) => {
+                if king_row - fig_row == fig_col - king_col {
+                    PosRelToKing::DownRight
+                } else {
+                    PosRelToKing::Unrelated
+                }
+            }
+            _ => PosRelToKing::Unrelated,
+        }
     }
 
     impl GameState {
@@ -149,13 +191,6 @@ pub mod game_logic {
             } else {
                 vec![]
             }
-        }
-
-        pub fn pos_rel_to_king(king_pos: (usize, usize), fig_pos: (usize, usize)) -> PosRelToKing {
-            let (king_row, king_col) = king_pos;
-            let (fig_row, fig_col) = fig_pos;
-
-            todo!()
         }
 
         /// Pick a figure to be moved on the next click to the position
