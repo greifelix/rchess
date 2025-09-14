@@ -44,6 +44,15 @@ pub mod game_logic {
         White,
     }
 
+    impl PlayerColor {
+        fn other_player(&self) -> PlayerColor {
+            match self {
+                PlayerColor::Black => PlayerColor::White,
+                PlayerColor::White => PlayerColor::Black,
+            }
+        }
+    }
+
     #[derive(Copy, Clone, PartialEq, Eq)]
     pub struct Figure {
         pub fig_type: FigType,
@@ -62,6 +71,46 @@ pub mod game_logic {
         pub player_turn: PlayerColor,
         pub chosen_figure: Option<(Figure, usize, usize)>,
         pub possible_moves: Option<PossibleMoves>,
+    }
+
+    pub fn threats_detected(
+        king_pos: (usize, usize),
+        board: [[Option<Figure>; 8]; 8],
+        threat_direction: PosRelToKing,
+        enemy_color: PlayerColor,
+    ) -> bool {
+        let (king_row, king_col) = king_pos;
+        let mut threat_detected = false;
+
+        let rank_threats = [FigType::Queen, FigType::Rook];
+        let diag_threats = [FigType::Queen, FigType::Bishop];
+
+        match threat_direction {
+            PosRelToKing::Above => {
+                for r in (king_row..8) {
+                    if let Some(fig) = board[r][king_col] {
+                        if (fig.player_color == enemy_color) && rank_threats.contains(&fig.fig_type)
+                        {
+                            threat_detected = true;
+                        }
+                        break;
+                    }
+                }
+            }
+            PosRelToKing::Below => {
+                for r in (0..king_row).rev() {
+                    if let Some(fig) = board[r][king_col] {
+                        if (fig.player_color == enemy_color) && rank_threats.contains(&fig.fig_type)
+                        {
+                            threat_detected = true;
+                        }
+                        break;
+                    }
+                }
+            }
+            _ => todo!(),
+        }
+        threat_detected
     }
 
     /// Get the position of the figure, relative to the (own) king
@@ -155,6 +204,7 @@ pub mod game_logic {
                 self.board[to_row][to_col] = self.board[from_row][from_col].take();
 
                 move_asset(to_be_moved, query, to_tile);
+                self.player_turn = self.player_turn.other_player();
             }
             self.chosen_figure = None;
             self.possible_moves = None;
@@ -191,6 +241,36 @@ pub mod game_logic {
             } else {
                 vec![]
             }
+        }
+
+        // king_pos: (usize, usize)
+
+        fn block_selfchecking_moves(
+            &self,
+            fig_pos: (usize, usize),
+            fig_moves: Vec<(usize, usize)>,
+        ) -> Vec<(usize, usize)> {
+            let (from_row, from_col) = fig_pos;
+            let mut out_moves = Vec::new();
+            for (to_row, to_col) in fig_moves.into_iter() {
+                let mut test_board = self.board.clone();
+                let king_pos = self.get_king_position(self.player_turn);
+                let possible_threat_direction = pos_rel_to_king(fig_pos, king_pos);
+                test_board[to_row][to_col] = test_board[from_row][from_col].take();
+
+                if threats_detected(
+                    king_pos,
+                    test_board,
+                    possible_threat_direction,
+                    self.player_turn.other_player(),
+                ) {
+                    continue;
+                } else {
+                    out_moves.push((to_row, to_col));
+                }
+            }
+
+            out_moves
         }
 
         /// Pick a figure to be moved on the next click to the position
