@@ -7,9 +7,26 @@ pub mod render_logic {
 
 pub mod game_logic {
 
+    use std::cmp::Ordering;
+
     use bevy::prelude::*;
+    use itertools::{Itertools, iproduct};
 
     use crate::utils::idx_to_coordinates;
+
+    /// Position Relative to the own king
+    #[derive(Copy, Clone, PartialEq, Eq)]
+    pub enum PosRelToKing {
+        Above,
+        Below,
+        Left,
+        Right,
+        UpLeft,
+        UpRight,
+        DownLeft,
+        DownRight,
+        Unrelated,
+    }
 
     #[derive(Copy, Clone, PartialEq, Eq)]
     pub enum FigType {
@@ -20,21 +37,30 @@ pub mod game_logic {
         Queen,
         King,
     }
-    #[derive(Copy, Clone, PartialEq, Eq)]
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub enum PlayerColor {
         Black,
         White,
     }
+
     #[derive(Copy, Clone, PartialEq, Eq)]
     pub struct Figure {
-        fig_type: FigType,
+        pub fig_type: FigType,
         pub ass_name: &'static str,
-        player_color: PlayerColor,
+        pub player_color: PlayerColor,
+    }
+
+    pub struct PossibleMoves {
+        pub from: (usize, usize),
+        pub to: Vec<(usize, usize)>,
     }
 
     #[derive(Resource)]
     pub struct GameState {
         pub board: [[Option<Figure>; 8]; 8],
+        pub player_turn: PlayerColor,
+        pub chosen_figure: Option<(Figure, usize, usize)>,
+        pub possible_moves: Option<PossibleMoves>,
     }
 
     impl GameState {
@@ -45,8 +71,17 @@ pub mod game_logic {
             }
         }
 
+        pub fn get_king_position(&self, fig_color: PlayerColor) -> (usize, usize) {
+            iproduct!(0..8, 0..8)
+                .find(|(r, c)| match self.board[*r][*c] {
+                    Some(fig) => fig.player_color == fig_color && fig.fig_type == FigType::King,
+                    None => false,
+                })
+                .unwrap()
+        }
+
         /// Kills target asset
-        pub fn kill_helper(
+        pub fn despawn_target(
             &self,
             commands: &mut Commands,
             target_name: &str,
@@ -59,8 +94,8 @@ pub mod game_logic {
             }
         }
 
-        /// Move figure potentially despawn and update game state
-        pub fn move_figure_and_asset(
+        /// Executes the chosen move, if it is valid. In case the move is invalid, nothing will happen d
+        pub fn execute_move(
             &mut self,
             commands: &mut Commands,
             to_be_moved: &str,
@@ -68,29 +103,19 @@ pub mod game_logic {
             to_tile: (usize, usize),
             query: &mut Query<(Entity, &Name, &mut Transform)>,
         ) {
-            if !self.move_is_valid(from_tile, to_tile) {
-                return;
+            if self.move_is_valid(from_tile, to_tile) {
+                let (from_row, from_col) = from_tile;
+                let (to_row, to_col) = to_tile;
+
+                if let Some(target) = self.board[to_row][to_col].take() {
+                    self.despawn_target(commands, target.ass_name, query);
+                }
+                self.board[to_row][to_col] = self.board[from_row][from_col].take();
+
+                move_asset(to_be_moved, query, to_tile);
             }
-
-            let (from_row, from_col) = from_tile;
-            let (to_row, to_col) = to_tile;
-
-            if let Some(target) = self.board[to_row][to_col].take() {
-                self.kill_helper(commands, target.ass_name, query);
-            }
-
-            self.board[to_row][to_col] = self.board[from_row][from_col].take();
-
-            // Todo: Replace filter with find or something
-            query
-                .iter_mut()
-                .filter(|(ent, name, t)| name.as_str() == to_be_moved)
-                .for_each(|(ent, name, mut t)| {
-                    let (z, x) = idx_to_coordinates(to_row, to_col);
-
-                    t.as_mut().translation.x = x;
-                    t.as_mut().translation.z = z;
-                });
+            self.chosen_figure = None;
+            self.possible_moves = None;
         }
 
         pub fn get_fig_on_tile(&self, row: usize, col: usize) -> Option<Figure> {
@@ -98,26 +123,39 @@ pub mod game_logic {
         }
 
         pub fn move_is_valid(&self, from_tile: (usize, usize), to_tile: (usize, usize)) -> bool {
-            self.calculate_valid_moves(from_tile).contains(&to_tile)
+            if let Some(moves) = &self.possible_moves {
+                from_tile == moves.from && moves.to.contains(&to_tile)
+            } else {
+                false
+            }
         }
 
-        pub fn calculate_valid_moves(&self, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
-            let (from_row, from_col) = from_tile;
+        /// Calculate the moves of the figure on the tile. The moves are not yet filtered,
+        /// on whether they might cause a check.
+        pub fn calculate_naive_moves(&self, tile: (usize, usize)) -> Vec<(usize, usize)> {
+            let (from_row, from_col) = tile;
             if let Some(fig) = self.board[from_row][from_col] {
                 match fig.fig_type {
                     FigType::Pawn => match fig.player_color {
-                        PlayerColor::Black => black_pawn_moves(&self.board, from_tile),
-                        PlayerColor::White => white_pawn_moves(&self.board, from_tile),
+                        PlayerColor::Black => black_pawn_moves(&self.board, tile),
+                        PlayerColor::White => white_pawn_moves(&self.board, tile),
                     },
-                    FigType::Rook => rook_moves(&self.board, from_tile),
-                    FigType::Knight => knight_moves(&self.board, from_tile),
-                    FigType::Bishop => bishop_moves(&self.board, from_tile),
-                    FigType::Queen => queen_moves(&self.board, from_tile),
-                    FigType::King => king_moves(&self.board, from_tile),
+                    FigType::Rook => rook_moves(&self.board, tile),
+                    FigType::Knight => knight_moves(&self.board, tile),
+                    FigType::Bishop => bishop_moves(&self.board, tile),
+                    FigType::Queen => queen_moves(&self.board, tile),
+                    FigType::King => king_moves(&self.board, tile), // TODO: Add filter for alle dangerous moves
                 }
             } else {
                 vec![]
             }
+        }
+
+        pub fn pos_rel_to_king(king_pos: (usize, usize), fig_pos: (usize, usize)) -> PosRelToKing {
+            let (king_row, king_col) = king_pos;
+            let (fig_row, fig_col) = fig_pos;
+
+            todo!()
         }
 
         /// Pick a figure to be moved on the next click to the position
@@ -312,10 +350,35 @@ pub mod game_logic {
                 black_pieces,
             ];
 
-            Self { board: board }
+            Self {
+                board: board,
+                player_turn: PlayerColor::White,
+                chosen_figure: None,
+                possible_moves: None,
+            }
         }
     }
 
+    // Todo: Replace filter with find or something
+    fn move_asset(
+        asset_name: &str,
+        query: &mut Query<'_, '_, (Entity, &Name, &mut Transform)>,
+        to_tile: (usize, usize),
+    ) {
+        let (to_row, to_col) = to_tile;
+        query
+            .iter_mut()
+            .filter(|(ent, name, t)| name.as_str() == asset_name)
+            .for_each(|(ent, name, mut t)| {
+                let (z, x) = idx_to_coordinates(to_row, to_col);
+
+                t.as_mut().translation.x = x;
+                t.as_mut().translation.z = z;
+            });
+    }
+
+    /// Calculates the pawn moves. Note: Does not check whether the move might be illegal by setting thyself checkmate.
+    /// This is handled for every move after the fact.
     pub fn white_pawn_moves(
         board: &[[Option<Figure>; 8]; 8],
         from_tile: (usize, usize),

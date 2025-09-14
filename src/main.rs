@@ -1,16 +1,12 @@
-use std::process::CommandArgs;
-
 use bevy::color::palettes::tailwind::*;
-use bevy::ecs::system::command::send_event;
-use bevy::gltf::{Gltf, GltfMaterialName, GltfMesh};
 use bevy::picking::pointer::PointerInteraction;
 use bevy::prelude::*;
-use bevy::state::commands;
+
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 mod utils;
-use rchess::game_logic::{self, FigType, Figure};
+use rchess::game_logic::{self, Figure, PossibleMoves};
 
 fn main() {
     App::new()
@@ -34,12 +30,6 @@ struct ChessBoard;
 struct MainHandle {
     handle: Handle<Scene>,
 }
-
-#[derive(Resource)]
-struct WhiteMaterial(Handle<StandardMaterial>);
-
-#[derive(Resource)]
-struct BlackMaterial(Handle<StandardMaterial>);
 
 fn environment_setup(mut commands: Commands) {
     // Setup Camera
@@ -92,7 +82,7 @@ fn board_setup(
                 Mesh3d(meshes.add(Plane3d::default().mesh().size(square_size, square_size))),
                 Transform::from_xyz(col_offset, 0.01, row_offset),
                 Name::new(format!("Tile_{}_{}", row, col)),
-                MeshMaterial3d(materials.add(Color::NONE)),// For release version
+                MeshMaterial3d(materials.add(Color::NONE)), // For release version
                 // MeshMaterial3d(materials.add(Color::srgba(0.2, 0.5, 0.0, 0.6))),
                 SurfaceTile,
             ));
@@ -100,6 +90,8 @@ fn board_setup(
     }
 }
 
+// TODO: Vielleicht System vorschalten,
+// welches immer checkt, ob es überhaupt noch valid moves gibt und andererseits das Spiel sofort beenden
 fn surface_picking_system(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -107,56 +99,56 @@ fn surface_picking_system(
     tile_query: Query<(Entity, &Name, &MeshMaterial3d<StandardMaterial>), With<SurfaceTile>>,
     mut piece_query: Query<(Entity, &Name, &mut Transform)>,
     mut game_state: ResMut<game_logic::GameState>,
-    mut prev_pick: Local<Option<(Figure, usize, usize)>>,
 ) {
     for click in click_events.read().take(1) {
-        if let Ok((tile_ent, tile_name, tile_mat)) = tile_query.get(click.target) {
+        if let Ok((_tile_ent, tile_name, tile_mat)) = tile_query.get(click.target) {
             reset_tile_highlights(&mut materials, &tile_query);
             let (clicked_row, clicked_col) = utils::tile_to_indices(tile_name.as_str());
 
             // Case 1: We previously picked a valid figure and are about to move the figure now
-            if let Some((picked_pigure, from_row, from_col)) = *prev_pick {
-                game_state.move_figure_and_asset(
+            if let Some((picked_pigure, from_row, from_col)) = game_state.chosen_figure {
+                game_state.execute_move(
                     &mut commands,
                     picked_pigure.ass_name,
                     (from_row, from_col),
                     (clicked_row, clicked_col),
                     &mut piece_query,
                 );
-                *prev_pick = None;
             }
             // Case 2: We did not yet pick a valid figure and will pick the figure to be moved now
             else {
-                //1. Highlight picked filed
-                if let Some(material) = materials.get_mut(&tile_mat.0) {
-                    material.base_color = Color::srgba(1.0, 0.0, 0.0, 0.6); // modifies existing
+                if let Some(fig) = game_state.get_fig_on_tile(clicked_row, clicked_col)
+                    && fig.player_color == game_state.player_turn
+                {
+                    game_state.chosen_figure = Some((fig, clicked_row, clicked_col));
+                } else {
+                    return;
                 }
-
-                // 2. Highlight the valid fields the piece can move to in case a figure was picked (in another color)
-                // (Use the tile query here, to filter by the names of the files we need / write indices to tile name function maybe)
-                let move_list: Vec<String> = game_state
-                    .calculate_valid_moves((clicked_row, clicked_col))
+                let possible_moves = game_state.calculate_naive_moves((clicked_row, clicked_col));
+                let move_list_str: Vec<String> = possible_moves
                     .iter()
                     .map(|(r, c)| format!("Tile_{r}_{c}"))
                     .collect();
+                game_state.possible_moves = Some(PossibleMoves {
+                    from: (clicked_row, clicked_col),
+                    to: possible_moves,
+                });
 
-                // // Dummy
-                for (e, n, m) in tile_query {
-                    if move_list.contains(&n.as_str().to_string()) {
-                        if let Some(material) = materials.get_mut(&m.0) {
-                            material.base_color = Color::srgba(0.0, 1.0, 0.0, 0.6); // modifies existing
-                        }
-                    }
+                highlight_tiles(&mut materials, tile_query, move_list_str, tile_mat);
+            }
+        }
+    }
+}
 
-                    // if n.as_str() == "Tile_1_0" || n.as_str() == "Tile_7_7" {
-                    // }
-                }
-                // // End dummy
-
-                let maybe_picked_figure = game_state.get_fig_on_tile(clicked_row, clicked_col);
-                if let Some(fig) = maybe_picked_figure {
-                    *prev_pick = Some((fig, clicked_row, clicked_col));
-                }
+fn highlight_tiles(materials: &mut ResMut<'_, Assets<StandardMaterial>>, tile_query: Query<'_, '_, (Entity, &Name, &MeshMaterial3d<StandardMaterial>), With<SurfaceTile>>, move_list_str: Vec<String>, tile_mat: &MeshMaterial3d<StandardMaterial>) {
+    //1. Highlight fields
+    if let Some(material) = materials.get_mut(&tile_mat.0) {
+        material.base_color = Color::srgba(1.0, 0.0, 0.0, 0.6);
+    }
+    for (_e, n, m) in tile_query {
+        if move_list_str.contains(&n.as_str().to_string()) {
+            if let Some(material) = materials.get_mut(&m.0) {
+                material.base_color = Color::srgba(0.0, 1.0, 0.0, 0.6); // modifies existing
             }
         }
     }
@@ -168,7 +160,6 @@ fn reset_tile_highlights(
 ) {
     for (e, n, mat) in tile_query {
         if let Some(material) = materials.get_mut(&mat.0) {
-            // material.base_color = Color::srgba(0.2, 0.5, 0.0, 0.6); // modifies existing
             material.base_color = Color::NONE;
         }
     }
