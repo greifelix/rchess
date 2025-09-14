@@ -16,7 +16,7 @@ fn main() {
         .insert_resource(game_logic::GameState::new())
         .add_systems(Startup, (environment_setup, board_setup).chain())
         .add_systems(Update, (draw_mesh_intersections,).chain())
-        .add_systems(Update, surface_picking_system)
+        .add_systems(Update, figure_picking)
         .run();
 }
 
@@ -92,7 +92,7 @@ fn board_setup(
 
 // TODO: Vielleicht System vorschalten,
 // welches immer checkt, ob es überhaupt noch valid moves gibt und andererseits das Spiel sofort beenden
-fn surface_picking_system(
+fn figure_picking(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut click_events: EventReader<Pointer<Click>>,
@@ -129,6 +129,7 @@ fn surface_picking_system(
                     .iter()
                     .map(|(r, c)| format!("Tile_{r}_{c}"))
                     .collect();
+                // TODO: Replace by nonblockig moves?
                 game_state.possible_moves = Some(PossibleMoves {
                     from: (clicked_row, clicked_col),
                     to: possible_moves,
