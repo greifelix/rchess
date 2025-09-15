@@ -11,6 +11,7 @@ pub mod game_logic {
 
     use bevy::prelude::*;
     use bevy_egui::egui::Order;
+    use bevy_inspector_egui::egui_utils::easymark::parser::Item;
     use itertools::{Itertools, iproduct};
 
     use crate::utils::idx_to_coordinates;
@@ -73,6 +74,30 @@ pub mod game_logic {
         pub possible_moves: Option<PossibleMoves>,
     }
 
+    /// Calculate the moves of the figure on the tile. The moves are not yet filtered,
+    /// on whether they might cause a check.
+    pub fn calculate_naive_moves(
+        board: &[[Option<Figure>; 8]; 8],
+        tile: (usize, usize),
+    ) -> Vec<(usize, usize)> {
+        let (from_row, from_col) = tile;
+        if let Some(fig) = board[from_row][from_col] {
+            match fig.fig_type {
+                FigType::Pawn => match fig.player_color {
+                    PlayerColor::Black => black_pawn_moves(board, tile),
+                    PlayerColor::White => white_pawn_moves(board, tile),
+                },
+                FigType::Rook => rook_moves(board, tile),
+                FigType::Knight => knight_moves(board, tile),
+                FigType::Bishop => bishop_moves(board, tile),
+                FigType::Queen => queen_moves(board, tile),
+                FigType::King => king_moves(board, tile), // TODO: Add filter for alle dangerous moves
+            }
+        } else {
+            vec![]
+        }
+    }
+
     pub fn threats_detected(
         king_pos: (usize, usize),
         board: [[Option<Figure>; 8]; 8],
@@ -80,37 +105,66 @@ pub mod game_logic {
         enemy_color: PlayerColor,
     ) -> bool {
         let (king_row, king_col) = king_pos;
-        let mut threat_detected = false;
-
         let rank_threats = [FigType::Queen, FigType::Rook];
         let diag_threats = [FigType::Queen, FigType::Bishop];
 
-        match threat_direction {
-            PosRelToKing::Above => {
-                for r in (king_row..8) {
-                    if let Some(fig) = board[r][king_col] {
-                        if (fig.player_color == enemy_color) && rank_threats.contains(&fig.fig_type)
-                        {
-                            threat_detected = true;
-                        }
-                        break;
-                    }
+        let (threat_tiles, threat_type): (Box<dyn Iterator<Item = (usize, usize)>>, [FigType; 2]) =
+            match threat_direction {
+                PosRelToKing::Unrelated => return false,
+                PosRelToKing::Above => (
+                    Box::new((king_row + 1..8).map(|r| (r, king_col))),
+                    rank_threats,
+                ),
+                PosRelToKing::Below => {
+                    let threat_tiles = Box::new((0..king_row).map(|r| (r, king_col)));
+                    (threat_tiles, rank_threats)
                 }
-            }
-            PosRelToKing::Below => {
-                for r in (0..king_row).rev() {
-                    if let Some(fig) = board[r][king_col] {
-                        if (fig.player_color == enemy_color) && rank_threats.contains(&fig.fig_type)
-                        {
-                            threat_detected = true;
-                        }
-                        break;
-                    }
+                PosRelToKing::Left => (
+                    Box::new((0..king_col).rev().map(|c| (king_row, c))),
+                    rank_threats,
+                ),
+                PosRelToKing::Right => (
+                    Box::new((king_col + 1..8).map(|c| (king_row, c))),
+                    rank_threats,
+                ),
+                PosRelToKing::UpRight => (
+                    Box::new((king_row + 1..8).zip(king_col + 1..8)),
+                    diag_threats,
+                ),
+                PosRelToKing::UpLeft => (
+                    Box::new((king_row + 1..8).zip((0..king_col).rev())),
+                    diag_threats,
+                ),
+                PosRelToKing::DownLeft => (
+                    Box::new((0..king_row).rev().zip((0..king_col).rev())),
+                    diag_threats,
+                ),
+                PosRelToKing::DownRight => (
+                    Box::new((0..king_row).rev().zip(king_col + 1..8)),
+                    diag_threats,
+                ),
+            };
+        _check_threat_vector(&board, enemy_color, threat_type, threat_tiles)
+    }
+
+    fn _check_threat_vector<I>(
+        board: &[[Option<Figure>; 8]; 8],
+        enemy_color: PlayerColor,
+        threat_types: [FigType; 2],
+        threat_tiles: I,
+    ) -> bool
+    where
+        I: IntoIterator<Item = (usize, usize)>,
+    {
+        for (r, c) in threat_tiles {
+            if let Some(fig) = board[r][c] {
+                if (fig.player_color == enemy_color) && threat_types.contains(&fig.fig_type) {
+                    return true;
                 }
+                return false;
             }
-            _ => todo!(),
         }
-        threat_detected
+        false
     }
 
     /// Get the position of the figure, relative to the (own) king
@@ -154,6 +208,17 @@ pub mod game_logic {
         }
     }
 
+    pub fn get_busy_tiles(
+        board: &[[Option<Figure>; 8]; 8],
+        player_color: PlayerColor,
+    ) -> Vec<(usize, usize)> {
+        iproduct!(0..8, 0..8)
+            .filter(|(r, c)| match board[*r][*c] {
+                Some(fig) if fig.player_color == player_color => true,
+                _ => false,
+            })
+            .collect()
+    }
     impl GameState {
         pub fn get_figure_name(&self, row: usize, col: usize) -> Option<&'static str> {
             match self.board[row][col] {
@@ -222,54 +287,62 @@ pub mod game_logic {
             }
         }
 
-        /// Calculate the moves of the figure on the tile. The moves are not yet filtered,
-        /// on whether they might cause a check.
-        pub fn calculate_naive_moves(&self, tile: (usize, usize)) -> Vec<(usize, usize)> {
-            let (from_row, from_col) = tile;
-            if let Some(fig) = self.board[from_row][from_col] {
-                match fig.fig_type {
-                    FigType::Pawn => match fig.player_color {
-                        PlayerColor::Black => black_pawn_moves(&self.board, tile),
-                        PlayerColor::White => white_pawn_moves(&self.board, tile),
-                    },
-                    FigType::Rook => rook_moves(&self.board, tile),
-                    FigType::Knight => knight_moves(&self.board, tile),
-                    FigType::Bishop => bishop_moves(&self.board, tile),
-                    FigType::Queen => queen_moves(&self.board, tile),
-                    FigType::King => king_moves(&self.board, tile), // TODO: Add filter for alle dangerous moves
-                }
-            } else {
-                vec![]
-            }
-        }
-
-        // king_pos: (usize, usize)
-
-        fn block_selfchecking_moves(
+        pub fn block_selfchecking_moves(
             &self,
             fig_pos: (usize, usize),
             fig_moves: Vec<(usize, usize)>,
         ) -> Vec<(usize, usize)> {
             let (from_row, from_col) = fig_pos;
             let mut out_moves = Vec::new();
-            for (to_row, to_col) in fig_moves.into_iter() {
-                let mut test_board = self.board.clone();
-                let king_pos = self.get_king_position(self.player_turn);
-                let possible_threat_direction = pos_rel_to_king(fig_pos, king_pos);
-                test_board[to_row][to_col] = test_board[from_row][from_col].take();
+            let king_pos = self.get_king_position(self.player_turn);
 
-                if threats_detected(
-                    king_pos,
-                    test_board,
-                    possible_threat_direction,
-                    self.player_turn.other_player(),
-                ) {
-                    continue;
-                } else {
-                    out_moves.push((to_row, to_col));
+            // Handle king extra.
+            // TODO: Wenn der König im "Check" steht, hat man immer noch das Problem, dass man mit den anderen Figuren
+            // alle moves machen kann. --> Refactor den Code unten vielleicht mit GameState/Methode "King-in-check" 
+            if king_pos == fig_pos {
+                for (to_row, to_col) in fig_moves.into_iter() {
+                    let mut board_clone = self.board.clone();
+                    board_clone[to_row][to_col] = board_clone[from_row][from_col].take();
+
+                    let enemy_tiles = get_busy_tiles(&board_clone, self.player_turn.other_player());
+
+                    if enemy_tiles.into_iter().any(|(enemy_move)| {
+                        calculate_naive_moves(&board_clone, enemy_move).contains(&(to_row, to_col))
+                    }) {
+                        continue;
+                    } else {
+                        out_moves.push((to_row, to_col));
+                    }
+                }
+
+                // Da Bauern nerven, müssen wir jeden möglichen König move performen und schauen ob es in dem State einen
+                // move vom Gegner gibt der uns threatened
+
+                // calculate_naive_moves(tile);
+
+                // let busy_tiles = self.get_busy_tiles(self.player_turn.other_player());
+
+                // 1. Get all enemy figures
+                // 2. Join all naive moves of all enemy-figure-tiles (Achtung Bauern haben glaube ich Sonderrolle!!)
+                // 3. Filter alle out moves heraus, die in den enemy moves sind
+            } else {
+                for (to_row, to_col) in fig_moves.into_iter() {
+                    let mut test_board = self.board.clone();
+                    let possible_threat_direction = pos_rel_to_king(fig_pos, king_pos);
+                    test_board[to_row][to_col] = test_board[from_row][from_col].take();
+
+                    if threats_detected(
+                        king_pos,
+                        test_board,
+                        possible_threat_direction,
+                        self.player_turn.other_player(),
+                    ) {
+                        continue;
+                    } else {
+                        out_moves.push((to_row, to_col));
+                    }
                 }
             }
-
             out_moves
         }
 

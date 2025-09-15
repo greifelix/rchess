@@ -124,7 +124,12 @@ fn figure_picking(
                 } else {
                     return;
                 }
-                let possible_moves = game_state.calculate_naive_moves((clicked_row, clicked_col));
+                let x = game_logic::calculate_naive_moves(
+                    &game_state.board,
+                    (clicked_row, clicked_col),
+                );
+                let possible_moves =
+                    game_state.block_selfchecking_moves((clicked_row, clicked_col), x);
                 let move_list_str: Vec<String> = possible_moves
                     .iter()
                     .map(|(r, c)| format!("Tile_{r}_{c}"))
@@ -141,7 +146,17 @@ fn figure_picking(
     }
 }
 
-fn highlight_tiles(materials: &mut ResMut<'_, Assets<StandardMaterial>>, tile_query: Query<'_, '_, (Entity, &Name, &MeshMaterial3d<StandardMaterial>), With<SurfaceTile>>, move_list_str: Vec<String>, tile_mat: &MeshMaterial3d<StandardMaterial>) {
+fn highlight_tiles(
+    materials: &mut ResMut<'_, Assets<StandardMaterial>>,
+    tile_query: Query<
+        '_,
+        '_,
+        (Entity, &Name, &MeshMaterial3d<StandardMaterial>),
+        With<SurfaceTile>,
+    >,
+    move_list_str: Vec<String>,
+    tile_mat: &MeshMaterial3d<StandardMaterial>,
+) {
     //1. Highlight fields
     if let Some(material) = materials.get_mut(&tile_mat.0) {
         material.base_color = Color::srgba(1.0, 0.0, 0.0, 0.6);
