@@ -2,3 +2,7 @@
 Cargo.lock
 .DS_STORE
 *.glb
+*.png
+*.gltf
+*.bin
+/old

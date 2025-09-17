@@ -6,7 +6,7 @@ use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 mod utils;
-use rchess::game_logic::{self, Figure, PossibleMoves};
+use rchess::game_logic::{self, PossibleMoves};
 
 fn main() {
     App::new()
@@ -15,7 +15,6 @@ fn main() {
         .add_plugins(WorldInspectorPlugin::new())
         .insert_resource(game_logic::GameState::new())
         .add_systems(Startup, (environment_setup, board_setup).chain())
-        .add_systems(Update, (draw_mesh_intersections,).chain())
         .add_systems(Update, figure_picking)
         .run();
 }
@@ -124,12 +123,12 @@ fn figure_picking(
                 } else {
                     return;
                 }
-                let x = game_logic::calculate_naive_moves(
+                let naive_moves = game_logic::calculate_naive_moves(
                     &game_state.board,
                     (clicked_row, clicked_col),
                 );
                 let possible_moves =
-                    game_state.block_selfchecking_moves((clicked_row, clicked_col), x);
+                    game_state.block_selfchecking_moves((clicked_row, clicked_col), naive_moves);
                 let move_list_str: Vec<String> = possible_moves
                     .iter()
                     .map(|(r, c)| format!("Tile_{r}_{c}"))
@@ -181,13 +180,4 @@ fn reset_tile_highlights(
     }
 }
 
-fn draw_mesh_intersections(pointers: Query<&PointerInteraction>, mut gizmos: Gizmos) {
-    for (point, normal) in pointers
-        .iter()
-        .filter_map(|interaction| interaction.get_nearest_hit())
-        .filter_map(|(_entity, hit)| hit.position.zip(hit.normal))
-    {
-        gizmos.sphere(point, 0.05, RED_500);
-        gizmos.arrow(point, point + normal.normalize() * 0.5, PINK_100);
-    }
-}
+

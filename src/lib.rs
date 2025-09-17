@@ -10,14 +10,12 @@ pub mod game_logic {
     use std::cmp::Ordering;
 
     use bevy::prelude::*;
-    use bevy_egui::egui::Order;
-    use bevy_inspector_egui::egui_utils::easymark::parser::Item;
-    use itertools::{Itertools, iproduct};
+    use itertools::iproduct;
 
     use crate::utils::idx_to_coordinates;
-
+    use std::collections::HashSet;
     /// Position Relative to the own king
-    #[derive(Copy, Clone, PartialEq, Eq)]
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub enum PosRelToKing {
         Above,
         Below,
@@ -66,12 +64,19 @@ pub mod game_logic {
         pub to: Vec<(usize, usize)>,
     }
 
+    #[derive(Copy, Clone, PartialEq, Eq)]
+    pub struct Attacker {
+        fig: Figure,
+        tile: (usize, usize),
+    }
+
     #[derive(Resource)]
     pub struct GameState {
         pub board: [[Option<Figure>; 8]; 8],
         pub player_turn: PlayerColor,
         pub chosen_figure: Option<(Figure, usize, usize)>,
         pub possible_moves: Option<PossibleMoves>,
+        pub under_attack: Option<Attacker>,
     }
 
     /// Calculate the moves of the figure on the tile. The moves are not yet filtered,
@@ -95,6 +100,37 @@ pub mod game_logic {
             }
         } else {
             vec![]
+        }
+    }
+
+    /// Returns the tiles between the king and a fig, where the kings tile is not inclusive but the figure is
+    pub fn get_tiles_between(
+        relative_pos: PosRelToKing,
+        king_pos: (usize, usize),
+        pos: (usize, usize),
+    ) -> Box<dyn Iterator<Item = (usize, usize)>> {
+        let (king_row, king_col) = king_pos;
+        let (fig_row, fig_col) = pos;
+
+        println!("Relative Position to king: {:?}", relative_pos);
+
+        // NOTE: if fig_pos is unknown,
+        match relative_pos {
+            PosRelToKing::Unrelated => Box::new([].into_iter()),
+            PosRelToKing::Above => Box::new((king_row + 1..=fig_row).map(move |r| (r, king_col))),
+            PosRelToKing::Below => Box::new((fig_row..king_row).map(move |r| (r, king_col))),
+            PosRelToKing::Left => Box::new((fig_col..king_col).rev().map(move |c| (king_row, c))),
+            PosRelToKing::Right => Box::new((king_col + 1..=fig_col).map(move |c| (king_row, c))),
+            PosRelToKing::UpRight => Box::new((king_row + 1..=fig_row).zip(king_col + 1..=fig_col)),
+            PosRelToKing::DownLeft => {
+                Box::new((fig_row..king_row).rev().zip((fig_col..king_col).rev()))
+            }
+            PosRelToKing::DownRight => {
+                Box::new((fig_row..king_row).rev().zip(king_col + 1..=fig_col))
+            }
+            PosRelToKing::UpLeft => {
+                Box::new((king_row + 1..=fig_row).zip((fig_col..king_col).rev()))
+            }
         }
     }
 
@@ -267,6 +303,7 @@ pub mod game_logic {
                     self.despawn_target(commands, target.ass_name, query);
                 }
                 self.board[to_row][to_col] = self.board[from_row][from_col].take();
+                self.under_attack = self.enemy_under_attack(to_tile);
 
                 move_asset(to_be_moved, query, to_tile);
                 self.player_turn = self.player_turn.other_player();
@@ -287,6 +324,24 @@ pub mod game_logic {
             }
         }
 
+        /// Meant to be called after an own move to see whether enemy is in own naive possible moves
+        pub fn enemy_under_attack(&self, attacker_tile: (usize, usize)) -> Option<Attacker> {
+            let king_pos = self.get_king_position(self.player_turn.other_player());
+
+            // Here we assume that the move was already executed!
+            if calculate_naive_moves(&self.board, attacker_tile).contains(&king_pos) {
+                println!("Check!!!");
+                Some(Attacker {
+                    fig: self
+                        .get_fig_on_tile(attacker_tile.0, attacker_tile.1)
+                        .unwrap(),
+                    tile: attacker_tile,
+                })
+            } else {
+                None
+            }
+        }
+
         pub fn block_selfchecking_moves(
             &self,
             fig_pos: (usize, usize),
@@ -298,7 +353,7 @@ pub mod game_logic {
 
             // Handle king extra.
             // TODO: Wenn der König im "Check" steht, hat man immer noch das Problem, dass man mit den anderen Figuren
-            // alle moves machen kann. --> Refactor den Code unten vielleicht mit GameState/Methode "King-in-check" 
+            // alle moves machen kann. --> Refactor den Code unten vielleicht mit GameState/Methode "King-in-check"
             if king_pos == fig_pos {
                 for (to_row, to_col) in fig_moves.into_iter() {
                     let mut board_clone = self.board.clone();
@@ -306,7 +361,7 @@ pub mod game_logic {
 
                     let enemy_tiles = get_busy_tiles(&board_clone, self.player_turn.other_player());
 
-                    if enemy_tiles.into_iter().any(|(enemy_move)| {
+                    if enemy_tiles.into_iter().any(|enemy_move| {
                         calculate_naive_moves(&board_clone, enemy_move).contains(&(to_row, to_col))
                     }) {
                         continue;
@@ -314,21 +369,11 @@ pub mod game_logic {
                         out_moves.push((to_row, to_col));
                     }
                 }
-
-                // Da Bauern nerven, müssen wir jeden möglichen König move performen und schauen ob es in dem State einen
-                // move vom Gegner gibt der uns threatened
-
-                // calculate_naive_moves(tile);
-
-                // let busy_tiles = self.get_busy_tiles(self.player_turn.other_player());
-
-                // 1. Get all enemy figures
-                // 2. Join all naive moves of all enemy-figure-tiles (Achtung Bauern haben glaube ich Sonderrolle!!)
-                // 3. Filter alle out moves heraus, die in den enemy moves sind
             } else {
-                for (to_row, to_col) in fig_moves.into_iter() {
+                let possible_threat_direction = pos_rel_to_king(fig_pos, king_pos);
+
+                for (to_row, to_col) in self.filter_moves_under_attack(fig_moves).into_iter() {
                     let mut test_board = self.board.clone();
-                    let possible_threat_direction = pos_rel_to_king(fig_pos, king_pos);
                     test_board[to_row][to_col] = test_board[from_row][from_col].take();
 
                     if threats_detected(
@@ -346,10 +391,29 @@ pub mod game_logic {
             out_moves
         }
 
-        /// Pick a figure to be moved on the next click to the position
-        /// In case no valid tile is clicked, none will be returned
-        pub fn pick_figure_to_move() -> Option<(usize, usize)> {
-            todo!()
+        /// Only allows moves which stop the attack (Only non-king moves); For every figure seperately
+        pub fn filter_moves_under_attack(&self, moves: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
+            let Some(attacker) = self.under_attack else {
+                return moves;
+            };
+
+            let king_pos = self.get_king_position(self.player_turn);
+            let attack_angle = pos_rel_to_king(attacker.tile, king_pos);
+
+            let stopping_moves: Vec<(usize, usize)> = match attacker.fig.fig_type {
+                FigType::King => panic!("Attacker can never be the enemy king."),
+                FigType::Knight | FigType::Pawn => Vec::from([attacker.tile]), // Pawns and Knights can only be stopped by killing move
+                FigType::Rook | FigType::Bishop | FigType::Queen => {
+                    get_tiles_between(attack_angle, king_pos, attacker.tile).collect()
+                }
+            };
+
+            let filter_set: HashSet<(usize, usize)> = stopping_moves.into_iter().collect();
+            let out: HashSet<(usize, usize)> = moves.into_iter().collect();
+
+            println!("{:?}", filter_set);
+
+            out.intersection(&filter_set).copied().collect()
         }
 
         pub fn new() -> Self {
@@ -543,6 +607,7 @@ pub mod game_logic {
                 player_turn: PlayerColor::White,
                 chosen_figure: None,
                 possible_moves: None,
+                under_attack: None,
             }
         }
     }
