@@ -5,8 +5,11 @@ use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
+// mod game_logic;
+mod game_logic;
 mod utils;
-use rchess::game_logic::{self, PossibleMoves};
+
+
 
 fn main() {
     App::new()
@@ -123,6 +126,8 @@ fn figure_picking(
                 } else {
                     return;
                 }
+
+                // TODO: Replace this part!
                 let naive_moves = game_logic::calculate_naive_moves(
                     &game_state.board,
                     (clicked_row, clicked_col),
@@ -134,7 +139,7 @@ fn figure_picking(
                     .map(|(r, c)| format!("Tile_{r}_{c}"))
                     .collect();
                 // TODO: Replace by nonblockig moves?
-                game_state.possible_moves = Some(PossibleMoves {
+                game_state.possible_moves = Some(game_logic::PossibleMoves {
                     from: (clicked_row, clicked_col),
                     to: possible_moves,
                 });
