@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
 use crate::game_logic::*;
-use std::{collections::HashSet, hash::Hash};
+use std::collections::HashSet;
 
 pub struct MoveBuilder {
     pub fig_pos: (usize, usize),
@@ -12,8 +12,10 @@ pub struct MoveBuilder {
 }
 
 impl MoveBuilder {
-    pub fn new(fig_pos: (usize, usize), board: Board, fig: Figure) -> MoveBuilder {
+    pub fn new(fig_pos: (usize, usize), board: Board) -> MoveBuilder {
+        let fig = board.get_fig_on_tile(fig_pos.0, fig_pos.1).unwrap();
         let king_pos = board.get_king_position(fig.player_color);
+
         Self {
             fig_pos,
             king_pos,
@@ -47,33 +49,32 @@ impl MoveBuilder {
     }
 
     pub fn filter_moves_in_check(mut self, maybe_attacker: Option<Attacker>) -> MoveBuilder {
-        let Some(attacker) = maybe_attacker else {
-            return self;
-        };
-        let attack_angle = movement_logic::pos_rel_to_king(attacker.tile, self.king_pos);
+        if let Some(attacker) = maybe_attacker
+            && self.fig.fig_type != FigType::King
+        {
+            let attack_angle = movement_logic::pos_rel_to_king(attacker.tile, self.king_pos);
 
-        let stopping_moves: HashSet<(usize, usize)> = match attacker.fig.fig_type {
-            FigType::King => panic!("Attacker can never be the enemy king."),
-            FigType::Knight | FigType::Pawn => HashSet::from([attacker.tile]), // Pawns and Knights can only be stopped by killing move
-            FigType::Rook | FigType::Bishop | FigType::Queen => {
-                movement_logic::get_tiles_between(attack_angle, self.king_pos, attacker.tile)
-                    .collect()
-            }
-        };
+            let stopping_moves: HashSet<(usize, usize)> = match attacker.fig.fig_type {
+                FigType::King => panic!("Attacker can never be the enemy king."),
+                FigType::Knight | FigType::Pawn => HashSet::from([attacker.tile]), // Pawns and Knights can only be stopped by killing move
+                FigType::Rook | FigType::Bishop | FigType::Queen => {
+                    movement_logic::get_tiles_between(attack_angle, self.king_pos, attacker.tile)
+                        .collect()
+                }
+            };
 
-        self.moveset = self
-            .moveset
-            .intersection(&stopping_moves)
-            .copied()
-            .collect();
+            self.moveset = self
+                .moveset
+                .intersection(&stopping_moves)
+                .copied()
+                .collect();
+        }
         self
     }
 
     pub fn block_selfchecking_moves(mut self) -> MoveBuilder {
         let mut guilty_moves = HashSet::new();
         let (from_row, from_col) = self.fig_pos;
-        // if possible_threat_direction==PosRelToKing::Unrelated {break;}
-        // TODO: Add I am king to possible threat direction und matche stattdessen das!
         match self.fig.fig_type {
             FigType::King => {
                 for (to_row, to_col) in self.moveset.iter() {
@@ -88,10 +89,7 @@ impl MoveBuilder {
                     if enemy_tiles.into_iter().any(|(enemy_row, enemy_col)| {
                         MoveBuilder::new(
                             (enemy_row, enemy_col),
-                            board_clone,
                             board_clone
-                                .get_fig_on_tile(enemy_row, enemy_col)
-                                .expect("No figure here, but it should"),
                         )
                         .calculate_naive_moves()
                         .extract()
@@ -126,51 +124,6 @@ impl MoveBuilder {
     }
 }
 
-// let (from_row, from_col) = fig_pos;
-//         let mut out_moves = HashSet::new();
-//         let king_pos = self.board.get_king_position(self.player_turn);
-
-//         // Refactor dies in "validate king movement"
-//         if king_pos == fig_pos {
-//             for (to_row, to_col) in fig_moves.into_iter() {
-//                 let mut board_clone = self.board.clone();
-//                 board_clone[to_row][to_col] = board_clone[from_row][from_col].take();
-
-//                 let enemy_tiles =
-//                     movement_logic::get_busy_tiles(&board_clone, self.player_turn.other_player());
-
-//                 if enemy_tiles.into_iter().any(|enemy_move| {
-//                     movement_logic::calculate_naive_moves(&board_clone, enemy_move)
-//                         .contains(&(to_row, to_col))
-//                 }) {
-//                     continue;
-//                 } else {
-//                     out_moves.insert((to_row, to_col));
-//                 }
-//             }
-//         // Refactor in validate_figure_movement
-//         } else {
-//             let possible_threat_direction = movement_logic::pos_rel_to_king(fig_pos, king_pos);
-
-//             for (to_row, to_col) in self.filter_moves_in_check(fig_moves).into_iter() {
-//                 let mut test_board = self.board.clone();
-//                 test_board[to_row][to_col] = test_board[from_row][from_col].take();
-
-//                 if movement_logic::threats_detected(
-//                     king_pos,
-//                     test_board,
-//                     possible_threat_direction,
-//                     self.player_turn.other_player(),
-//                 ) {
-//                     continue;
-//                 } else {
-//                     out_moves.insert((to_row, to_col));
-//                 }
-//             }
-//         }
-//         out_moves
-// }
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PosRelToKing {
     Above,
@@ -193,7 +146,6 @@ pub fn get_tiles_between(
     let (king_row, king_col) = king_pos;
     let (fig_row, fig_col) = pos;
 
-    // NOTE: if fig_pos is unknown,
     match relative_pos {
         PosRelToKing::Unrelated => Box::new([].into_iter()),
         PosRelToKing::Above => Box::new((king_row + 1..=fig_row).map(move |r| (r, king_col))),
@@ -328,23 +280,7 @@ pub fn get_busy_tiles(board: &Board, player_color: PlayerColor) -> Vec<(usize, u
         .collect()
 }
 
-/// Calculate the moves of the figure on the tile. The moves are not yet filtered,
-/// on whether they might cause a check.
-pub fn calculate_naive_moves(board: &Board, tile: (usize, usize)) -> HashSet<(usize, usize)> {
-    let (from_row, from_col) = tile;
-    let fig = board[from_row][from_col].unwrap();
-    match fig.fig_type {
-        FigType::Pawn => match fig.player_color {
-            PlayerColor::Black => black_pawn_moves(board, tile),
-            PlayerColor::White => white_pawn_moves(board, tile),
-        },
-        FigType::Rook => rook_moves(board, tile),
-        FigType::Knight => knight_moves(board, tile),
-        FigType::Bishop => bishop_moves(board, tile),
-        FigType::Queen => queen_moves(board, tile),
-        FigType::King => king_moves(board, tile), // TODO: Add filter for alle dangerous moves
-    }
-}
+
 // ++++++++++++++++++ Each individual figure move ++++++++++++++++++
 pub fn white_pawn_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(usize, usize)> {
     let (from_row, from_col) = from_tile;

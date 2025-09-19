@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use itertools::iproduct;
 use std::cmp::Ordering;
 
-use crate::utils::idx_to_coordinates;
+use crate::{game_logic::movement_logic::MoveBuilder, utils::idx_to_coordinates};
 use std::collections::HashSet;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -41,7 +41,7 @@ pub struct Figure {
 pub struct PossibleMoves {
     pub from_tile: (usize, usize),
     pub to: HashSet<(usize, usize)>,
-}   
+}
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Attacker {
@@ -59,10 +59,8 @@ impl Board {
                 Some(fig) => fig.player_color == fig_color && fig.fig_type == FigType::King,
                 None => false,
             })
-            .expect("There will always be a king, so this should not panic.")
+            .expect("There will always be a king, so this should never panic.")
     }
-
-
     pub fn get_fig_on_tile(&self, row: usize, col: usize) -> Option<Figure> {
         self[row][col]
     }
@@ -78,14 +76,6 @@ pub struct GameState {
 }
 
 impl GameState {
-    pub fn get_figure_name(&self, row: usize, col: usize) -> Option<&'static str> {
-        match self.board[row][col] {
-            None => None,
-            Some(fig) => Some(fig.ass_name),
-        }
-    }
-
-    /// Kills target asset
     pub fn despawn_target(
         &self,
         commands: &mut Commands,
@@ -144,7 +134,8 @@ impl GameState {
             .get_king_position(self.player_turn.other_player());
 
         // Here we assume that the move was already executed!
-        if movement_logic::calculate_naive_moves(&self.board, attacker_tile).contains(&king_pos) {
+
+        if MoveBuilder::new(attacker_tile, self.board.clone()).calculate_naive_moves().extract().to.contains(&king_pos) {
             println!("Check!!!");
             Some(Attacker {
                 fig: self
@@ -157,78 +148,6 @@ impl GameState {
         }
     }
 
-    pub fn block_selfchecking_moves(
-        &self,
-        fig_pos: (usize, usize),
-        fig_moves: HashSet<(usize, usize)>,
-    ) -> HashSet<(usize, usize)> {
-        let (from_row, from_col) = fig_pos;
-        let mut out_moves = HashSet::new();
-        let king_pos = self.board.get_king_position(self.player_turn);
-
-        // Refactor dies in "validate king movement"
-        if king_pos == fig_pos {
-            for (to_row, to_col) in fig_moves.into_iter() {
-                let mut board_clone = self.board.clone();
-                board_clone[to_row][to_col] = board_clone[from_row][from_col].take();
-
-                let enemy_tiles =
-                    movement_logic::get_busy_tiles(&board_clone, self.player_turn.other_player());
-
-                if enemy_tiles.into_iter().any(|enemy_move| {
-                    movement_logic::calculate_naive_moves(&board_clone, enemy_move)
-                        .contains(&(to_row, to_col))
-                }) {
-                    continue;
-                } else {
-                    out_moves.insert((to_row, to_col));
-                }
-            }
-        // Refactor in validate_figure_movement
-        } else {
-            let possible_threat_direction = movement_logic::pos_rel_to_king(fig_pos, king_pos);
-
-            for (to_row, to_col) in self.filter_moves_in_check(fig_moves).into_iter() {
-                let mut test_board = self.board.clone();
-                test_board[to_row][to_col] = test_board[from_row][from_col].take();
-
-                if movement_logic::threats_detected(
-                    king_pos,
-                    test_board,
-                    possible_threat_direction,
-                    self.player_turn.other_player(),
-                ) {
-                    continue;
-                } else {
-                    out_moves.insert((to_row, to_col));
-                }
-            }
-        }
-        out_moves
-    }
-
-    /// Only allows moves which stop the attack (Only non-king moves); For every figure seperately
-    pub fn filter_moves_in_check(&self, moves: HashSet<(usize, usize)>) -> HashSet<(usize, usize)> {
-        let Some(attacker) = self.under_attack else {
-            return moves;
-        };
-
-        let king_pos = self.board.get_king_position(self.player_turn);
-        let attack_angle = movement_logic::pos_rel_to_king(attacker.tile, king_pos);
-
-        let stopping_moves: Vec<(usize, usize)> = match attacker.fig.fig_type {
-            FigType::King => panic!("Attacker can never be the enemy king."),
-            FigType::Knight | FigType::Pawn => Vec::from([attacker.tile]), // Pawns and Knights can only be stopped by killing move
-            FigType::Rook | FigType::Bishop | FigType::Queen => {
-                movement_logic::get_tiles_between(attack_angle, king_pos, attacker.tile).collect()
-            }
-        };
-
-        let filter_set: HashSet<(usize, usize)> = stopping_moves.into_iter().collect();
-        let out: HashSet<(usize, usize)> = moves.into_iter().collect();
-
-        out.intersection(&filter_set).copied().collect()
-    }
 
     pub fn new() -> Self {
         let white_pieces = [
@@ -405,7 +324,7 @@ impl GameState {
 
         let empty_rank: [Option<Figure>; 8] = [None; 8];
 
-        let board = [
+        let raw_board = [
             white_pieces,
             white_pawns,
             empty_rank,
@@ -417,7 +336,7 @@ impl GameState {
         ];
 
         Self {
-            board: Board(board),
+            board: Board(raw_board),
             player_turn: PlayerColor::White,
             chosen_figure: None,
             possible_moves: None,
@@ -426,7 +345,6 @@ impl GameState {
     }
 }
 
-// Todo: Replace filter with find or something
 fn move_asset(
     asset_name: &str,
     query: &mut Query<'_, '_, (Entity, &Name, &mut Transform)>,
@@ -435,8 +353,8 @@ fn move_asset(
     let (to_row, to_col) = to_tile;
     query
         .iter_mut()
-        .filter(|(ent, name, t)| name.as_str() == asset_name)
-        .for_each(|(ent, name, mut t)| {
+        .filter(|(_ent, name, _t)| name.as_str() == asset_name)
+        .for_each(|(_ent, _name, mut t)| {
             let (z, x) = idx_to_coordinates(to_row, to_col);
 
             t.as_mut().translation.x = x;

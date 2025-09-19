@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
-use crate::game_logic::movement_logic;
+use crate::game_logic::movement_logic::{self, MoveBuilder};
 
 // mod game_logic;
 mod game_logic;
@@ -22,7 +22,6 @@ fn main() {
 
 #[derive(Component)]
 struct SurfaceTile;
-
 
 #[derive(Resource)]
 struct MainHandle {
@@ -55,17 +54,14 @@ fn board_setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // Note Felix: This is not needed yet, I just want to check if and how this works if at all
     let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("chess_set.glb"));
-    commands.insert_resource(MainHandle {
-        handle: scene_handle.clone(),
-    });
+    // Note Felix: This is not needed yet, I just want to check if and how this works if at all
+    // commands.insert_resource(MainHandle {
+    //     handle: scene_handle.clone(),
+    // });
 
     // Spawns and also loads assets into the respective c
-    commands.spawn((
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        SceneRoot(scene_handle)
-    ));
+    commands.spawn((Transform::from_xyz(0.0, 0.0, 0.0), SceneRoot(scene_handle)));
 
     // Parameters
     let square_size = 0.05;
@@ -120,22 +116,20 @@ fn figure_picking(
                     return;
                 }
 
-                // TODO: Replace this part!
-                let naive_moves = movement_logic::calculate_naive_moves(
-                    &game_state.board,
-                    (clicked_row, clicked_col),
-                );
-                let possible_moves =
-                    game_state.block_selfchecking_moves((clicked_row, clicked_col), naive_moves);
-                let move_list_str: Vec<String> = possible_moves
+               
+                let movelist =
+                    MoveBuilder::new((clicked_row, clicked_col), game_state.board.clone())
+                        .calculate_naive_moves()
+                        .filter_moves_in_check(game_state.under_attack)
+                        .block_selfchecking_moves()
+                        .extract();
+
+                let move_list_str: Vec<String> = movelist
+                    .to
                     .iter()
                     .map(|(r, c)| format!("Tile_{r}_{c}"))
                     .collect();
-                // TODO: Replace by nonblockig moves?
-                game_state.possible_moves = Some(game_logic::PossibleMoves {
-                    from_tile: (clicked_row, clicked_col),
-                    to: possible_moves,
-                });
+                game_state.possible_moves = Some(movelist);
 
                 highlight_tiles(&mut materials, tile_query, move_list_str, tile_mat);
             }
