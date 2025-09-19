@@ -1,4 +1,4 @@
-use itertools::Itertools;
+// use itertools::Itertools;
 
 use crate::game_logic::*;
 use std::collections::HashSet;
@@ -81,8 +81,7 @@ impl MoveBuilder {
                     let mut board_clone = self.board.clone();
                     board_clone[*to_row][*to_col] = board_clone[from_row][from_col].take();
 
-                    let enemy_tiles = movement_logic::get_busy_tiles(
-                        &board_clone,
+                    let enemy_tiles = self.board.clone().get_busy_tiles(
                         self.fig.player_color.other_player(),
                     );
 
@@ -271,14 +270,7 @@ pub fn pos_rel_to_king(fig_pos: (usize, usize), king_pos: (usize, usize)) -> Pos
     }
 }
 
-pub fn get_busy_tiles(board: &Board, player_color: PlayerColor) -> Vec<(usize, usize)> {
-    iproduct!(0..8, 0..8)
-        .filter(|(r, c)| match board[*r][*c] {
-            Some(fig) if fig.player_color == player_color => true,
-            _ => false,
-        })
-        .collect()
-}
+
 
 
 // ++++++++++++++++++ Each individual figure move ++++++++++++++++++
@@ -317,7 +309,7 @@ pub fn white_pawn_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(us
     out
 }
 
-// HashSet<(usize,usize)>
+
 
 pub fn black_pawn_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(usize, usize)> {
     let (from_row, from_col) = from_tile;

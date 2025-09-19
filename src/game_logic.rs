@@ -1,11 +1,12 @@
+pub mod minmax_logic;
 pub mod movement_logic;
 
 use bevy::prelude::*;
 use itertools::iproduct;
 use std::cmp::Ordering;
+use std::collections::HashSet;
 
 use crate::{game_logic::movement_logic::MoveBuilder, utils::idx_to_coordinates};
-use std::collections::HashSet;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum FigType {
@@ -64,6 +65,15 @@ impl Board {
     pub fn get_fig_on_tile(&self, row: usize, col: usize) -> Option<Figure> {
         self[row][col]
     }
+
+    pub fn get_busy_tiles(&self, player_color: PlayerColor) -> Vec<(usize, usize)> {
+        iproduct!(0..8, 0..8)
+            .filter(|(r, c)| match self[*r][*c] {
+                Some(fig) if fig.player_color == player_color => true,
+                _ => false,
+            })
+            .collect()
+    }
 }
 
 #[derive(Resource)]
@@ -101,14 +111,18 @@ impl GameState {
         if self.move_is_valid(from_tile, to_tile) {
             let (from_row, from_col) = from_tile;
             let (to_row, to_col) = to_tile;
+            move_asset(to_be_moved, query, to_tile);
 
             if let Some(target) = self.board[to_row][to_col].take() {
                 self.despawn_target(commands, target.ass_name, query);
             }
             self.board[to_row][to_col] = self.board[from_row][from_col].take();
-            self.under_attack = self.enemy_under_attack(to_tile);
+            self.under_attack = self.enemy_in_check(to_tile);
 
-            move_asset(to_be_moved, query, to_tile);
+            if self.enemy_in_checkmate(){
+                println!("Game over, {:?}",self.player_turn.other_player());
+            }
+
             self.player_turn = self.player_turn.other_player();
         }
         self.chosen_figure = None;
@@ -128,14 +142,19 @@ impl GameState {
     }
 
     /// Meant to be called after an own move to see whether enemy is in own naive possible moves
-    pub fn enemy_under_attack(&self, attacker_tile: (usize, usize)) -> Option<Attacker> {
+    pub fn enemy_in_check(&self, attacker_tile: (usize, usize)) -> Option<Attacker> {
         let king_pos = self
             .board
             .get_king_position(self.player_turn.other_player());
 
         // Here we assume that the move was already executed!
 
-        if MoveBuilder::new(attacker_tile, self.board.clone()).calculate_naive_moves().extract().to.contains(&king_pos) {
+        if MoveBuilder::new(attacker_tile, self.board.clone())
+            .calculate_naive_moves()
+            .extract()
+            .to
+            .contains(&king_pos)
+        {
             println!("Check!!!");
             Some(Attacker {
                 fig: self
@@ -148,6 +167,26 @@ impl GameState {
         }
     }
 
+    pub fn enemy_in_checkmate(&self) -> bool {
+        match self.under_attack {
+            Some(attacker) => !self
+                .board
+                .get_busy_tiles(self.player_turn.other_player())
+                .into_iter()
+                .any(|(r, c)| {
+                    MoveBuilder::new((r, c), self.board.clone())
+                        .calculate_naive_moves()
+                        .filter_moves_in_check(Some(attacker))
+                        .block_selfchecking_moves()
+                        .extract()
+                        .to
+                        .iter()
+                        .count()
+                        > 0
+                }),
+            None => false,
+        }
+    }
 
     pub fn new() -> Self {
         let white_pieces = [

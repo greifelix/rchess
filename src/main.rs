@@ -3,9 +3,8 @@ use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
-use crate::game_logic::movement_logic::{self, MoveBuilder};
+use crate::game_logic::movement_logic::MoveBuilder;
 
-// mod game_logic;
 mod game_logic;
 mod utils;
 
@@ -23,24 +22,17 @@ fn main() {
 #[derive(Component)]
 struct SurfaceTile;
 
-#[derive(Resource)]
-struct MainHandle {
-    handle: Handle<Scene>,
-}
-
 fn environment_setup(mut commands: Commands) {
-    // Setup Camera
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 0.5, 0.5).looking_at(Vec3::ZERO, Vec3::Y),
         MeshPickingCamera,
     ));
 
-    // Setup Lighting
     commands
         .spawn(DirectionalLight {
             shadows_enabled: true,
-            illuminance: 5000., // Adjusted for a more reasonable value
+            illuminance: 5000.,
             ..Default::default()
         })
         .insert(
@@ -55,15 +47,9 @@ fn board_setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("chess_set.glb"));
-    // Note Felix: This is not needed yet, I just want to check if and how this works if at all
-    // commands.insert_resource(MainHandle {
-    //     handle: scene_handle.clone(),
-    // });
 
-    // Spawns and also loads assets into the respective c
     commands.spawn((Transform::from_xyz(0.0, 0.0, 0.0), SceneRoot(scene_handle)));
 
-    // Parameters
     let square_size = 0.05;
 
     for (row, _row_c) in ('1'..='8').enumerate() {
@@ -81,8 +67,7 @@ fn board_setup(
     }
 }
 
-// TODO: Vielleicht System vorschalten,
-// welches immer checkt, ob es überhaupt noch valid moves gibt und andererseits das Spiel sofort beenden
+
 fn figure_picking(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -116,7 +101,6 @@ fn figure_picking(
                     return;
                 }
 
-               
                 let movelist =
                     MoveBuilder::new((clicked_row, clicked_col), game_state.board.clone())
                         .calculate_naive_moves()
