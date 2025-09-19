@@ -1,1 +1,520 @@
+use crate::game_logic::*;
+use std::collections::HashSet;
 
+pub struct MoveBuilder {
+    pub fig_pos: (usize, usize),
+    pub king_pos: (usize, usize),
+    pub board: Board,
+    pub fig: Figure,
+    pub moveset: HashSet<(usize, usize)>,
+}
+
+impl MoveBuilder {
+    pub fn new(fig_pos: (usize, usize), board: Board, fig: Figure) -> MoveBuilder {
+        let king_pos = board.get_king_position(fig.player_color);
+        Self {
+            fig_pos,
+            king_pos,
+            board,
+            fig,
+            moveset: HashSet::new(),
+        }
+    }
+
+    pub fn calculate_naive_moves(mut self) -> MoveBuilder {
+        let (from_row, from_col) = self.fig_pos;
+
+        // match self.fig.fig_type {
+        //     FigType::Pawn => match fig.player_color {
+        //         PlayerColor::Black => black_pawn_moves(board, tile),
+        //         PlayerColor::White => white_pawn_moves(board, tile),
+        //     },
+        //     FigType::Rook => rook_moves(board, tile),
+        //     FigType::Knight => knight_moves(board, tile),
+        //     FigType::Bishop => bishop_moves(board, tile),
+        //     FigType::Queen => queen_moves(board, tile),
+        //     FigType::King => king_moves(board, tile), // TODO: Add filter for alle dangerous moves
+        // };
+
+        todo!()
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PosRelToKing {
+    Above,
+    Below,
+    Left,
+    Right,
+    UpLeft,
+    UpRight,
+    DownLeft,
+    DownRight,
+    Unrelated,
+}
+
+/// Returns the tiles between the king and a fig, where the kings tile is not inclusive but the figure is
+pub fn get_tiles_between(
+    relative_pos: PosRelToKing,
+    king_pos: (usize, usize),
+    pos: (usize, usize),
+) -> Box<dyn Iterator<Item = (usize, usize)>> {
+    let (king_row, king_col) = king_pos;
+    let (fig_row, fig_col) = pos;
+
+    // NOTE: if fig_pos is unknown,
+    match relative_pos {
+        PosRelToKing::Unrelated => Box::new([].into_iter()),
+        PosRelToKing::Above => Box::new((king_row + 1..=fig_row).map(move |r| (r, king_col))),
+        PosRelToKing::Below => Box::new((fig_row..king_row).map(move |r| (r, king_col))),
+        PosRelToKing::Left => Box::new((fig_col..king_col).rev().map(move |c| (king_row, c))),
+        PosRelToKing::Right => Box::new((king_col + 1..=fig_col).map(move |c| (king_row, c))),
+        PosRelToKing::UpRight => Box::new((king_row + 1..=fig_row).zip(king_col + 1..=fig_col)),
+        PosRelToKing::DownLeft => {
+            Box::new((fig_row..king_row).rev().zip((fig_col..king_col).rev()))
+        }
+        PosRelToKing::DownRight => Box::new((fig_row..king_row).rev().zip(king_col + 1..=fig_col)),
+        PosRelToKing::UpLeft => Box::new((king_row + 1..=fig_row).zip((fig_col..king_col).rev())),
+    }
+}
+
+pub fn threats_detected(
+    king_pos: (usize, usize),
+    board: Board,
+    threat_direction: PosRelToKing,
+    enemy_color: PlayerColor,
+) -> bool {
+    let (king_row, king_col) = king_pos;
+    let rank_threats = [FigType::Queen, FigType::Rook];
+    let diag_threats = [FigType::Queen, FigType::Bishop];
+
+    let (threat_tiles, threat_type): (Box<dyn Iterator<Item = (usize, usize)>>, [FigType; 2]) =
+        match threat_direction {
+            PosRelToKing::Unrelated => return false,
+            PosRelToKing::Above => (
+                Box::new((king_row + 1..8).map(|r| (r, king_col))),
+                rank_threats,
+            ),
+            PosRelToKing::Below => {
+                let threat_tiles = Box::new((0..king_row).map(|r| (r, king_col)));
+                (threat_tiles, rank_threats)
+            }
+            PosRelToKing::Left => (
+                Box::new((0..king_col).rev().map(|c| (king_row, c))),
+                rank_threats,
+            ),
+            PosRelToKing::Right => (
+                Box::new((king_col + 1..8).map(|c| (king_row, c))),
+                rank_threats,
+            ),
+            PosRelToKing::UpRight => (
+                Box::new((king_row + 1..8).zip(king_col + 1..8)),
+                diag_threats,
+            ),
+            PosRelToKing::UpLeft => (
+                Box::new((king_row + 1..8).zip((0..king_col).rev())),
+                diag_threats,
+            ),
+            PosRelToKing::DownLeft => (
+                Box::new((0..king_row).rev().zip((0..king_col).rev())),
+                diag_threats,
+            ),
+            PosRelToKing::DownRight => (
+                Box::new((0..king_row).rev().zip(king_col + 1..8)),
+                diag_threats,
+            ),
+        };
+    _check_threat_vector(&board, enemy_color, threat_type, threat_tiles)
+}
+
+fn _check_threat_vector<I>(
+    board: &Board,
+    enemy_color: PlayerColor,
+    threat_types: [FigType; 2],
+    threat_tiles: I,
+) -> bool
+where
+    I: IntoIterator<Item = (usize, usize)>,
+{
+    for (r, c) in threat_tiles {
+        if let Some(fig) = board[r][c] {
+            if (fig.player_color == enemy_color) && threat_types.contains(&fig.fig_type) {
+                return true;
+            }
+            return false;
+        }
+    }
+    false
+}
+
+/// Get the position of the figure, relative to the (own) king
+pub fn pos_rel_to_king(fig_pos: (usize, usize), king_pos: (usize, usize)) -> PosRelToKing {
+    let (king_row, king_col) = king_pos;
+    let (fig_row, fig_col) = fig_pos;
+    match (fig_row.cmp(&king_row), fig_col.cmp(&king_col)) {
+        (Ordering::Equal, Ordering::Greater) => PosRelToKing::Right,
+        (Ordering::Equal, Ordering::Less) => PosRelToKing::Left,
+        (Ordering::Greater, Ordering::Equal) => PosRelToKing::Above,
+        (Ordering::Less, Ordering::Equal) => PosRelToKing::Below,
+        (Ordering::Greater, Ordering::Greater) => {
+            if fig_row - king_row == fig_col - king_col {
+                PosRelToKing::UpRight
+            } else {
+                PosRelToKing::Unrelated
+            }
+        }
+        (Ordering::Less, Ordering::Less) => {
+            if king_row - fig_row == king_col - fig_col {
+                PosRelToKing::DownLeft
+            } else {
+                PosRelToKing::Unrelated
+            }
+        }
+        (Ordering::Greater, Ordering::Less) => {
+            if fig_row - king_row == king_col - fig_col {
+                PosRelToKing::UpLeft
+            } else {
+                PosRelToKing::Unrelated
+            }
+        }
+        (Ordering::Less, Ordering::Greater) => {
+            if king_row - fig_row == fig_col - king_col {
+                PosRelToKing::DownRight
+            } else {
+                PosRelToKing::Unrelated
+            }
+        }
+        _ => PosRelToKing::Unrelated,
+    }
+}
+
+pub fn get_busy_tiles(board: &Board, player_color: PlayerColor) -> Vec<(usize, usize)> {
+    iproduct!(0..8, 0..8)
+        .filter(|(r, c)| match board[*r][*c] {
+            Some(fig) if fig.player_color == player_color => true,
+            _ => false,
+        })
+        .collect()
+}
+
+/// Calculate the moves of the figure on the tile. The moves are not yet filtered,
+/// on whether they might cause a check.
+pub fn calculate_naive_moves(board: &Board, tile: (usize, usize)) -> Vec<(usize, usize)> {
+    let (from_row, from_col) = tile;
+    if let Some(fig) = board[from_row][from_col] {
+        match fig.fig_type {
+            FigType::Pawn => match fig.player_color {
+                PlayerColor::Black => black_pawn_moves(board, tile),
+                PlayerColor::White => white_pawn_moves(board, tile),
+            },
+            FigType::Rook => rook_moves(board, tile),
+            FigType::Knight => knight_moves(board, tile),
+            FigType::Bishop => bishop_moves(board, tile),
+            FigType::Queen => queen_moves(board, tile),
+            FigType::King => king_moves(board, tile), // TODO: Add filter for alle dangerous moves
+        }
+    } else {
+        vec![]
+    }
+}
+// ++++++++++++++++++ Each individual figure move ++++++++++++++++++
+pub fn white_pawn_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+    let (from_row, from_col) = from_tile;
+    let mut out = Vec::<(usize, usize)>::new();
+    // 1. Move one up, if there is no other piece (including piece itself, in case of boundary wrap)
+    let (r, c) = ((from_row + 1).min(7), from_col);
+    if board[r][c].is_none() {
+        out.push((r, c));
+    }
+
+    // 2. Move two up, if there is no other piece in the way, and we start at row 1
+    if from_row == 1 && board[from_row + 1][c].is_none() && board[from_row + 2][c].is_none() {
+        out.push((from_row + 2, from_col));
+    }
+    // 3. Move diagonal right /left, in case there is black piece
+    let (r, c) = ((from_row + 1).min(7), (from_col + 1).min(7));
+    if r != from_row && c != from_col {
+        if let Some(f) = board[r][c]
+            && f.player_color == PlayerColor::Black
+        {
+            out.push((r, c));
+        }
+    }
+    // 4. Move diagonally left, in case there is a black piece
+    let (r, c) = ((from_row + 1).min(7), (from_col.saturating_sub(1)));
+    if r != from_row && c != from_col {
+        if let Some(f) = board[r][c]
+            && f.player_color == PlayerColor::Black
+        {
+            out.push((r, c));
+        }
+    }
+
+    out
+}
+
+pub fn black_pawn_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+    let (from_row, from_col) = from_tile;
+    let mut out = Vec::<(usize, usize)>::new();
+    // 1. Move one down, if there is no other piece (including piece itself, in case of boundary wrap)
+    let (r, c) = (from_row.saturating_sub(1), from_col);
+    if board[r][c].is_none() {
+        out.push((r, c));
+    }
+
+    // 2. Move two up, if there is no other piece in the way, and we start at row 1
+    if from_row == 6 && board[from_row - 1][c].is_none() && board[from_row - 2][c].is_none() {
+        out.push((from_row - 2, from_col));
+    }
+    // 3. Move diagonal right /left, in case there is white piece
+    let (r, c) = (from_row.saturating_sub(1), (from_col + 1).min(7));
+    if r != from_row && c != from_col {
+        if let Some(f) = board[r][c]
+            && f.player_color == PlayerColor::White
+        {
+            out.push((r, c));
+        }
+    }
+    // 4. Move diagonally left, in case there is a white piece
+    let (r, c) = (from_row.saturating_sub(1), (from_col.saturating_sub(1)));
+    if r != from_row && c != from_col {
+        if let Some(f) = board[r][c]
+            && f.player_color == PlayerColor::White
+        {
+            out.push((r, c));
+        }
+    }
+
+    out
+}
+
+pub fn rook_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+    let (from_row, from_col) = from_tile;
+    let mut out: Vec<(usize, usize)> = Vec::new();
+    if let Some(fig) = board[from_row][from_col] {
+        let rook_color = fig.player_color;
+
+        // To the right; stop when encounter
+        for r_next in (from_row + 1)..=7 {
+            if let Some(block_fig) = board[r_next][from_col] {
+                if rook_color != block_fig.player_color {
+                    out.push((r_next, from_col));
+                }
+                break;
+            } else {
+                out.push((r_next, from_col));
+            }
+        }
+        // To the left, stop when encounter
+        for r_next in (0..from_row).rev() {
+            if let Some(block_fig) = board[r_next][from_col] {
+                if rook_color != block_fig.player_color {
+                    out.push((r_next, from_col));
+                }
+                break;
+            } else {
+                out.push((r_next, from_col));
+            }
+        }
+
+        // To the top; stop when encounter
+        for c_next in (from_col + 1)..=7 {
+            if let Some(block_fig) = board[from_row][c_next] {
+                if rook_color != block_fig.player_color {
+                    out.push((from_row, c_next));
+                }
+                break;
+            } else {
+                out.push((from_row, c_next));
+            }
+        }
+
+        // To the bottom; stop when encounter
+        for c_next in (0..from_col).rev() {
+            if let Some(block_fig) = board[from_row][c_next] {
+                if rook_color != block_fig.player_color {
+                    out.push((from_row, c_next));
+                }
+                break;
+            } else {
+                out.push((from_row, c_next));
+            }
+        }
+    }
+
+    out
+}
+
+pub fn bishop_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+    let (from_row, from_col) = from_tile;
+    let mut out: Vec<(usize, usize)> = Vec::new();
+    if let Some(fig) = board[from_row][from_col] {
+        let bishop_color = fig.player_color;
+
+        // To the top right; stop when encounter
+        for (r_next, c_next) in ((from_row + 1)..=7).zip((from_col + 1)..=7) {
+            if let Some(block_fig) = board[r_next][c_next] {
+                if bishop_color != block_fig.player_color {
+                    out.push((r_next, c_next));
+                }
+                break;
+            } else {
+                out.push((r_next, c_next));
+            }
+        }
+
+        // To the bottom left; stop when encounter
+        for (r_next, c_next) in (0..from_row).rev().zip((0..from_col).rev()) {
+            if let Some(block_fig) = board[r_next][c_next] {
+                if bishop_color != block_fig.player_color {
+                    out.push((r_next, c_next));
+                }
+                break;
+            } else {
+                out.push((r_next, c_next));
+            }
+        }
+
+        // To the top left; stop when encounter
+        for (r_next, c_next) in ((from_row + 1)..=7).zip((0..from_col).rev()) {
+            if let Some(block_fig) = board[r_next][c_next] {
+                if bishop_color != block_fig.player_color {
+                    out.push((r_next, c_next));
+                }
+                break;
+            } else {
+                out.push((r_next, c_next));
+            }
+        }
+
+        // To the bottom right; stop when encounter
+        for (r_next, c_next) in ((0..from_row).rev()).zip((from_col + 1)..=7) {
+            if let Some(block_fig) = board[r_next][c_next] {
+                if bishop_color != block_fig.player_color {
+                    out.push((r_next, c_next));
+                }
+                break;
+            } else {
+                out.push((r_next, c_next));
+            }
+        }
+    }
+
+    out
+}
+
+pub fn queen_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+    [rook_moves(board, from_tile), bishop_moves(board, from_tile)].concat()
+}
+
+pub fn knight_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+    let mut cands: Vec<(usize, usize)> = Vec::new();
+    let (from_row, from_col) = from_tile;
+    if let Some(fig) = board[from_row][from_col] {
+        let knight_color = fig.player_color;
+
+        // 2-hoch 1-links/rechts
+        if from_row + 2 < 8 {
+            if from_col + 1 < 8 {
+                cands.push((from_row + 2, from_col + 1));
+            }
+            if from_col.saturating_sub(1) < from_col {
+                cands.push((from_row + 2, from_col - 1));
+            }
+        }
+        // 2-runter 1-links/rechts
+        if from_row.saturating_sub(2) + 2 == from_row {
+            if from_col + 1 < 8 {
+                cands.push((from_row - 2, from_col + 1));
+            }
+            if from_col.saturating_sub(1) < from_col {
+                cands.push((from_row - 2, from_col - 1));
+            }
+        }
+        // 2-rechts 1-oben/unte
+        if from_col + 2 < 8 {
+            if from_row + 1 < 8 {
+                cands.push((from_row + 1, from_col + 2));
+            }
+            if from_row.saturating_sub(1) < from_row {
+                cands.push((from_row - 1, from_col + 2));
+            }
+        }
+
+        // 2 links 1-oben/unten
+        if from_col.saturating_sub(2) + 2 == from_col {
+            if from_row + 1 < 8 {
+                cands.push((from_row + 1, from_col - 2));
+            }
+            if from_row.saturating_sub(1) < from_row {
+                cands.push((from_row - 1, from_col - 2));
+            }
+        }
+        cands
+            .into_iter()
+            .filter(|(r, c)| match board[*r][*c] {
+                Some(block_fig) => knight_color != block_fig.player_color,
+                None => true,
+            })
+            .collect()
+    } else {
+        vec![]
+    }
+}
+
+pub fn king_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+    let (r, c) = from_tile;
+    let mut cands: Vec<(usize, usize)> = Vec::new();
+    if let Some(fig) = board[r][c] {
+        let king_color = fig.player_color;
+
+        // Rechts
+        if c + 1 < 8 {
+            cands.push((r, c + 1));
+        }
+
+        // Oben-Rechts
+        if r + 1 < 8 && c + 1 < 8 {
+            cands.push((r + 1, c + 1));
+        }
+
+        // Oben
+        if r + 1 < 8 {
+            cands.push((r + 1, c));
+        }
+
+        // Oben links
+        if r + 1 < 8 && c.saturating_sub(1) + 1 == c {
+            cands.push((r + 1, c - 1));
+        }
+
+        // Links
+        if c.saturating_sub(1) + 1 == c {
+            cands.push((r, c - 1));
+        }
+
+        // Unten Links
+        if c.saturating_sub(1) + 1 == c && r.saturating_sub(1) + 1 == r {
+            cands.push((r - 1, c - 1));
+        }
+        // Unten
+        if r.saturating_sub(1) + 1 == r {
+            cands.push((r - 1, c));
+        }
+        // Unten rechts
+
+        if r.saturating_sub(1) + 1 == r && c + 1 < 8 {
+            cands.push((r - 1, c + 1));
+        }
+
+        cands
+            .into_iter()
+            .filter(|(r, c)| match board[*r][*c] {
+                Some(block_fig) => king_color != block_fig.player_color,
+                None => true,
+            })
+            .collect()
+    } else {
+        vec![]
+    }
+}

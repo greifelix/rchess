@@ -1,15 +1,13 @@
-use bevy::color::palettes::tailwind::*;
-use bevy::picking::pointer::PointerInteraction;
 use bevy::prelude::*;
 
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
+use crate::game_logic::movement_logic;
+
 // mod game_logic;
 mod game_logic;
 mod utils;
-
-
 
 fn main() {
     App::new()
@@ -25,8 +23,6 @@ fn main() {
 #[derive(Component)]
 struct SurfaceTile;
 
-#[derive(Component)]
-struct ChessBoard;
 
 #[derive(Resource)]
 struct MainHandle {
@@ -68,14 +64,12 @@ fn board_setup(
     // Spawns and also loads assets into the respective c
     commands.spawn((
         Transform::from_xyz(0.0, 0.0, 0.0),
-        SceneRoot(scene_handle),
-        ChessBoard,
+        SceneRoot(scene_handle)
     ));
 
     // Parameters
     let square_size = 0.05;
 
-    // Spawn the pickable coponents
     for (row, _row_c) in ('1'..='8').enumerate() {
         for (col, _col_c) in ('a'..='h').enumerate() {
             let (row_offset, col_offset) = utils::idx_to_coordinates(row, col);
@@ -84,8 +78,7 @@ fn board_setup(
                 Mesh3d(meshes.add(Plane3d::default().mesh().size(square_size, square_size))),
                 Transform::from_xyz(col_offset, 0.01, row_offset),
                 Name::new(format!("Tile_{}_{}", row, col)),
-                MeshMaterial3d(materials.add(Color::NONE)), // For release version
-                // MeshMaterial3d(materials.add(Color::srgba(0.2, 0.5, 0.0, 0.6))),
+                MeshMaterial3d(materials.add(Color::NONE)),
                 SurfaceTile,
             ));
         }
@@ -128,7 +121,7 @@ fn figure_picking(
                 }
 
                 // TODO: Replace this part!
-                let naive_moves = game_logic::calculate_naive_moves(
+                let naive_moves = movement_logic::calculate_naive_moves(
                     &game_state.board,
                     (clicked_row, clicked_col),
                 );
@@ -140,7 +133,7 @@ fn figure_picking(
                     .collect();
                 // TODO: Replace by nonblockig moves?
                 game_state.possible_moves = Some(game_logic::PossibleMoves {
-                    from: (clicked_row, clicked_col),
+                    from_tile: (clicked_row, clicked_col),
                     to: possible_moves,
                 });
 
@@ -178,11 +171,9 @@ fn reset_tile_highlights(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     tile_query: &Query<(Entity, &Name, &MeshMaterial3d<StandardMaterial>), With<SurfaceTile>>,
 ) {
-    for (e, n, mat) in tile_query {
+    for (_e, _n, mat) in tile_query {
         if let Some(material) = materials.get_mut(&mat.0) {
             material.base_color = Color::NONE;
         }
     }
 }
-
-
