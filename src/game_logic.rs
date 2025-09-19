@@ -40,8 +40,8 @@ pub struct Figure {
 
 pub struct PossibleMoves {
     pub from_tile: (usize, usize),
-    pub to: Vec<(usize, usize)>,
-}
+    pub to: HashSet<(usize, usize)>,
+}   
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Attacker {
@@ -60,6 +60,11 @@ impl Board {
                 None => false,
             })
             .expect("There will always be a king, so this should not panic.")
+    }
+
+
+    pub fn get_fig_on_tile(&self, row: usize, col: usize) -> Option<Figure> {
+        self[row][col]
     }
 }
 
@@ -155,10 +160,10 @@ impl GameState {
     pub fn block_selfchecking_moves(
         &self,
         fig_pos: (usize, usize),
-        fig_moves: Vec<(usize, usize)>,
-    ) -> Vec<(usize, usize)> {
+        fig_moves: HashSet<(usize, usize)>,
+    ) -> HashSet<(usize, usize)> {
         let (from_row, from_col) = fig_pos;
-        let mut out_moves = Vec::new();
+        let mut out_moves = HashSet::new();
         let king_pos = self.board.get_king_position(self.player_turn);
 
         // Refactor dies in "validate king movement"
@@ -176,7 +181,7 @@ impl GameState {
                 }) {
                     continue;
                 } else {
-                    out_moves.push((to_row, to_col));
+                    out_moves.insert((to_row, to_col));
                 }
             }
         // Refactor in validate_figure_movement
@@ -195,7 +200,7 @@ impl GameState {
                 ) {
                     continue;
                 } else {
-                    out_moves.push((to_row, to_col));
+                    out_moves.insert((to_row, to_col));
                 }
             }
         }
@@ -203,7 +208,7 @@ impl GameState {
     }
 
     /// Only allows moves which stop the attack (Only non-king moves); For every figure seperately
-    pub fn filter_moves_in_check(&self, moves: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
+    pub fn filter_moves_in_check(&self, moves: HashSet<(usize, usize)>) -> HashSet<(usize, usize)> {
         let Some(attacker) = self.under_attack else {
             return moves;
         };

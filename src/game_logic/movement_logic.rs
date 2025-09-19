@@ -1,5 +1,7 @@
+use itertools::Itertools;
+
 use crate::game_logic::*;
-use std::collections::HashSet;
+use std::{collections::HashSet, hash::Hash};
 
 pub struct MoveBuilder {
     pub fig_pos: (usize, usize),
@@ -21,24 +23,153 @@ impl MoveBuilder {
         }
     }
 
+    pub fn extract(self) -> PossibleMoves {
+        PossibleMoves {
+            from_tile: self.fig_pos,
+            to: self.moveset,
+        }
+    }
+
     pub fn calculate_naive_moves(mut self) -> MoveBuilder {
+        self.moveset = match self.fig.fig_type {
+            FigType::Pawn => match self.fig.player_color {
+                PlayerColor::Black => black_pawn_moves(&self.board, self.fig_pos),
+                PlayerColor::White => white_pawn_moves(&self.board, self.fig_pos),
+            },
+            FigType::Rook => rook_moves(&self.board, self.fig_pos),
+            FigType::Knight => knight_moves(&self.board, self.fig_pos),
+            FigType::Bishop => bishop_moves(&self.board, self.fig_pos),
+            FigType::Queen => queen_moves(&self.board, self.fig_pos),
+            FigType::King => king_moves(&self.board, self.fig_pos),
+        };
+
+        self
+    }
+
+    pub fn filter_moves_in_check(mut self, maybe_attacker: Option<Attacker>) -> MoveBuilder {
+        let Some(attacker) = maybe_attacker else {
+            return self;
+        };
+        let attack_angle = movement_logic::pos_rel_to_king(attacker.tile, self.king_pos);
+
+        let stopping_moves: HashSet<(usize, usize)> = match attacker.fig.fig_type {
+            FigType::King => panic!("Attacker can never be the enemy king."),
+            FigType::Knight | FigType::Pawn => HashSet::from([attacker.tile]), // Pawns and Knights can only be stopped by killing move
+            FigType::Rook | FigType::Bishop | FigType::Queen => {
+                movement_logic::get_tiles_between(attack_angle, self.king_pos, attacker.tile)
+                    .collect()
+            }
+        };
+
+        self.moveset = self
+            .moveset
+            .intersection(&stopping_moves)
+            .copied()
+            .collect();
+        self
+    }
+
+    pub fn block_selfchecking_moves(mut self) -> MoveBuilder {
+        let mut guilty_moves = HashSet::new();
         let (from_row, from_col) = self.fig_pos;
+        // if possible_threat_direction==PosRelToKing::Unrelated {break;}
+        // TODO: Add I am king to possible threat direction und matche stattdessen das!
+        match self.fig.fig_type {
+            FigType::King => {
+                for (to_row, to_col) in self.moveset.iter() {
+                    let mut board_clone = self.board.clone();
+                    board_clone[*to_row][*to_col] = board_clone[from_row][from_col].take();
 
-        // match self.fig.fig_type {
-        //     FigType::Pawn => match fig.player_color {
-        //         PlayerColor::Black => black_pawn_moves(board, tile),
-        //         PlayerColor::White => white_pawn_moves(board, tile),
-        //     },
-        //     FigType::Rook => rook_moves(board, tile),
-        //     FigType::Knight => knight_moves(board, tile),
-        //     FigType::Bishop => bishop_moves(board, tile),
-        //     FigType::Queen => queen_moves(board, tile),
-        //     FigType::King => king_moves(board, tile), // TODO: Add filter for alle dangerous moves
-        // };
+                    let enemy_tiles = movement_logic::get_busy_tiles(
+                        &board_clone,
+                        self.fig.player_color.other_player(),
+                    );
 
-        todo!()
+                    if enemy_tiles.into_iter().any(|(enemy_row, enemy_col)| {
+                        MoveBuilder::new(
+                            (enemy_row, enemy_col),
+                            board_clone,
+                            board_clone
+                                .get_fig_on_tile(enemy_row, enemy_col)
+                                .expect("No figure here, but it should"),
+                        )
+                        .calculate_naive_moves()
+                        .extract()
+                        .to
+                        .contains(&(*to_row, *to_col))
+                    }) {
+                        guilty_moves.insert((*to_row, *to_col));
+                    }
+                }
+            }
+            _ => {
+                let possible_threat_direction =
+                    movement_logic::pos_rel_to_king(self.fig_pos, self.king_pos);
+                for (to_row, to_col) in self.moveset.iter() {
+                    let mut test_board = self.board.clone();
+                    test_board[*to_row][*to_col] = test_board[from_row][from_col].take();
+
+                    if movement_logic::threats_detected(
+                        self.king_pos,
+                        test_board,
+                        possible_threat_direction,
+                        self.fig.player_color.other_player(),
+                    ) {
+                        guilty_moves.insert((*to_row, *to_col));
+                    }
+                }
+            }
+        };
+
+        self.moveset = self.moveset.difference(&guilty_moves).copied().collect();
+        self
     }
 }
+
+// let (from_row, from_col) = fig_pos;
+//         let mut out_moves = HashSet::new();
+//         let king_pos = self.board.get_king_position(self.player_turn);
+
+//         // Refactor dies in "validate king movement"
+//         if king_pos == fig_pos {
+//             for (to_row, to_col) in fig_moves.into_iter() {
+//                 let mut board_clone = self.board.clone();
+//                 board_clone[to_row][to_col] = board_clone[from_row][from_col].take();
+
+//                 let enemy_tiles =
+//                     movement_logic::get_busy_tiles(&board_clone, self.player_turn.other_player());
+
+//                 if enemy_tiles.into_iter().any(|enemy_move| {
+//                     movement_logic::calculate_naive_moves(&board_clone, enemy_move)
+//                         .contains(&(to_row, to_col))
+//                 }) {
+//                     continue;
+//                 } else {
+//                     out_moves.insert((to_row, to_col));
+//                 }
+//             }
+//         // Refactor in validate_figure_movement
+//         } else {
+//             let possible_threat_direction = movement_logic::pos_rel_to_king(fig_pos, king_pos);
+
+//             for (to_row, to_col) in self.filter_moves_in_check(fig_moves).into_iter() {
+//                 let mut test_board = self.board.clone();
+//                 test_board[to_row][to_col] = test_board[from_row][from_col].take();
+
+//                 if movement_logic::threats_detected(
+//                     king_pos,
+//                     test_board,
+//                     possible_threat_direction,
+//                     self.player_turn.other_player(),
+//                 ) {
+//                     continue;
+//                 } else {
+//                     out_moves.insert((to_row, to_col));
+//                 }
+//             }
+//         }
+//         out_moves
+// }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PosRelToKing {
@@ -199,37 +330,34 @@ pub fn get_busy_tiles(board: &Board, player_color: PlayerColor) -> Vec<(usize, u
 
 /// Calculate the moves of the figure on the tile. The moves are not yet filtered,
 /// on whether they might cause a check.
-pub fn calculate_naive_moves(board: &Board, tile: (usize, usize)) -> Vec<(usize, usize)> {
+pub fn calculate_naive_moves(board: &Board, tile: (usize, usize)) -> HashSet<(usize, usize)> {
     let (from_row, from_col) = tile;
-    if let Some(fig) = board[from_row][from_col] {
-        match fig.fig_type {
-            FigType::Pawn => match fig.player_color {
-                PlayerColor::Black => black_pawn_moves(board, tile),
-                PlayerColor::White => white_pawn_moves(board, tile),
-            },
-            FigType::Rook => rook_moves(board, tile),
-            FigType::Knight => knight_moves(board, tile),
-            FigType::Bishop => bishop_moves(board, tile),
-            FigType::Queen => queen_moves(board, tile),
-            FigType::King => king_moves(board, tile), // TODO: Add filter for alle dangerous moves
-        }
-    } else {
-        vec![]
+    let fig = board[from_row][from_col].unwrap();
+    match fig.fig_type {
+        FigType::Pawn => match fig.player_color {
+            PlayerColor::Black => black_pawn_moves(board, tile),
+            PlayerColor::White => white_pawn_moves(board, tile),
+        },
+        FigType::Rook => rook_moves(board, tile),
+        FigType::Knight => knight_moves(board, tile),
+        FigType::Bishop => bishop_moves(board, tile),
+        FigType::Queen => queen_moves(board, tile),
+        FigType::King => king_moves(board, tile), // TODO: Add filter for alle dangerous moves
     }
 }
 // ++++++++++++++++++ Each individual figure move ++++++++++++++++++
-pub fn white_pawn_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+pub fn white_pawn_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(usize, usize)> {
     let (from_row, from_col) = from_tile;
-    let mut out = Vec::<(usize, usize)>::new();
+    let mut out = HashSet::new();
     // 1. Move one up, if there is no other piece (including piece itself, in case of boundary wrap)
     let (r, c) = ((from_row + 1).min(7), from_col);
     if board[r][c].is_none() {
-        out.push((r, c));
+        out.insert((r, c));
     }
 
     // 2. Move two up, if there is no other piece in the way, and we start at row 1
     if from_row == 1 && board[from_row + 1][c].is_none() && board[from_row + 2][c].is_none() {
-        out.push((from_row + 2, from_col));
+        out.insert((from_row + 2, from_col));
     }
     // 3. Move diagonal right /left, in case there is black piece
     let (r, c) = ((from_row + 1).min(7), (from_col + 1).min(7));
@@ -237,7 +365,7 @@ pub fn white_pawn_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize,
         if let Some(f) = board[r][c]
             && f.player_color == PlayerColor::Black
         {
-            out.push((r, c));
+            out.insert((r, c));
         }
     }
     // 4. Move diagonally left, in case there is a black piece
@@ -246,25 +374,27 @@ pub fn white_pawn_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize,
         if let Some(f) = board[r][c]
             && f.player_color == PlayerColor::Black
         {
-            out.push((r, c));
+            out.insert((r, c));
         }
     }
 
     out
 }
 
-pub fn black_pawn_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+// HashSet<(usize,usize)>
+
+pub fn black_pawn_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(usize, usize)> {
     let (from_row, from_col) = from_tile;
-    let mut out = Vec::<(usize, usize)>::new();
+    let mut out = HashSet::new();
     // 1. Move one down, if there is no other piece (including piece itself, in case of boundary wrap)
     let (r, c) = (from_row.saturating_sub(1), from_col);
     if board[r][c].is_none() {
-        out.push((r, c));
+        out.insert((r, c));
     }
 
     // 2. Move two up, if there is no other piece in the way, and we start at row 1
     if from_row == 6 && board[from_row - 1][c].is_none() && board[from_row - 2][c].is_none() {
-        out.push((from_row - 2, from_col));
+        out.insert((from_row - 2, from_col));
     }
     // 3. Move diagonal right /left, in case there is white piece
     let (r, c) = (from_row.saturating_sub(1), (from_col + 1).min(7));
@@ -272,7 +402,7 @@ pub fn black_pawn_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize,
         if let Some(f) = board[r][c]
             && f.player_color == PlayerColor::White
         {
-            out.push((r, c));
+            out.insert((r, c));
         }
     }
     // 4. Move diagonally left, in case there is a white piece
@@ -281,16 +411,16 @@ pub fn black_pawn_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize,
         if let Some(f) = board[r][c]
             && f.player_color == PlayerColor::White
         {
-            out.push((r, c));
+            out.insert((r, c));
         }
     }
 
     out
 }
 
-pub fn rook_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+pub fn rook_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(usize, usize)> {
     let (from_row, from_col) = from_tile;
-    let mut out: Vec<(usize, usize)> = Vec::new();
+    let mut out = HashSet::new();
     if let Some(fig) = board[from_row][from_col] {
         let rook_color = fig.player_color;
 
@@ -298,22 +428,22 @@ pub fn rook_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize
         for r_next in (from_row + 1)..=7 {
             if let Some(block_fig) = board[r_next][from_col] {
                 if rook_color != block_fig.player_color {
-                    out.push((r_next, from_col));
+                    out.insert((r_next, from_col));
                 }
                 break;
             } else {
-                out.push((r_next, from_col));
+                out.insert((r_next, from_col));
             }
         }
         // To the left, stop when encounter
         for r_next in (0..from_row).rev() {
             if let Some(block_fig) = board[r_next][from_col] {
                 if rook_color != block_fig.player_color {
-                    out.push((r_next, from_col));
+                    out.insert((r_next, from_col));
                 }
                 break;
             } else {
-                out.push((r_next, from_col));
+                out.insert((r_next, from_col));
             }
         }
 
@@ -321,11 +451,11 @@ pub fn rook_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize
         for c_next in (from_col + 1)..=7 {
             if let Some(block_fig) = board[from_row][c_next] {
                 if rook_color != block_fig.player_color {
-                    out.push((from_row, c_next));
+                    out.insert((from_row, c_next));
                 }
                 break;
             } else {
-                out.push((from_row, c_next));
+                out.insert((from_row, c_next));
             }
         }
 
@@ -333,11 +463,11 @@ pub fn rook_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize
         for c_next in (0..from_col).rev() {
             if let Some(block_fig) = board[from_row][c_next] {
                 if rook_color != block_fig.player_color {
-                    out.push((from_row, c_next));
+                    out.insert((from_row, c_next));
                 }
                 break;
             } else {
-                out.push((from_row, c_next));
+                out.insert((from_row, c_next));
             }
         }
     }
@@ -345,9 +475,9 @@ pub fn rook_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize
     out
 }
 
-pub fn bishop_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+pub fn bishop_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(usize, usize)> {
     let (from_row, from_col) = from_tile;
-    let mut out: Vec<(usize, usize)> = Vec::new();
+    let mut out = HashSet::new();
     if let Some(fig) = board[from_row][from_col] {
         let bishop_color = fig.player_color;
 
@@ -355,11 +485,11 @@ pub fn bishop_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usi
         for (r_next, c_next) in ((from_row + 1)..=7).zip((from_col + 1)..=7) {
             if let Some(block_fig) = board[r_next][c_next] {
                 if bishop_color != block_fig.player_color {
-                    out.push((r_next, c_next));
+                    out.insert((r_next, c_next));
                 }
                 break;
             } else {
-                out.push((r_next, c_next));
+                out.insert((r_next, c_next));
             }
         }
 
@@ -367,11 +497,11 @@ pub fn bishop_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usi
         for (r_next, c_next) in (0..from_row).rev().zip((0..from_col).rev()) {
             if let Some(block_fig) = board[r_next][c_next] {
                 if bishop_color != block_fig.player_color {
-                    out.push((r_next, c_next));
+                    out.insert((r_next, c_next));
                 }
                 break;
             } else {
-                out.push((r_next, c_next));
+                out.insert((r_next, c_next));
             }
         }
 
@@ -379,11 +509,11 @@ pub fn bishop_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usi
         for (r_next, c_next) in ((from_row + 1)..=7).zip((0..from_col).rev()) {
             if let Some(block_fig) = board[r_next][c_next] {
                 if bishop_color != block_fig.player_color {
-                    out.push((r_next, c_next));
+                    out.insert((r_next, c_next));
                 }
                 break;
             } else {
-                out.push((r_next, c_next));
+                out.insert((r_next, c_next));
             }
         }
 
@@ -391,11 +521,11 @@ pub fn bishop_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usi
         for (r_next, c_next) in ((0..from_row).rev()).zip((from_col + 1)..=7) {
             if let Some(block_fig) = board[r_next][c_next] {
                 if bishop_color != block_fig.player_color {
-                    out.push((r_next, c_next));
+                    out.insert((r_next, c_next));
                 }
                 break;
             } else {
-                out.push((r_next, c_next));
+                out.insert((r_next, c_next));
             }
         }
     }
@@ -403,118 +533,115 @@ pub fn bishop_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usi
     out
 }
 
-pub fn queen_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
-    [rook_moves(board, from_tile), bishop_moves(board, from_tile)].concat()
+pub fn queen_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(usize, usize)> {
+    rook_moves(board, from_tile)
+        .union(&bishop_moves(board, from_tile))
+        .cloned()
+        .collect()
 }
 
-pub fn knight_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
-    let mut cands: Vec<(usize, usize)> = Vec::new();
+pub fn knight_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(usize, usize)> {
+    let mut cands = HashSet::new();
     let (from_row, from_col) = from_tile;
-    if let Some(fig) = board[from_row][from_col] {
-        let knight_color = fig.player_color;
+    let fig = board[from_row][from_col].unwrap();
+    let knight_color = fig.player_color;
 
-        // 2-hoch 1-links/rechts
-        if from_row + 2 < 8 {
-            if from_col + 1 < 8 {
-                cands.push((from_row + 2, from_col + 1));
-            }
-            if from_col.saturating_sub(1) < from_col {
-                cands.push((from_row + 2, from_col - 1));
-            }
+    // 2-hoch 1-links/rechts
+    if from_row + 2 < 8 {
+        if from_col + 1 < 8 {
+            cands.insert((from_row + 2, from_col + 1));
         }
-        // 2-runter 1-links/rechts
-        if from_row.saturating_sub(2) + 2 == from_row {
-            if from_col + 1 < 8 {
-                cands.push((from_row - 2, from_col + 1));
-            }
-            if from_col.saturating_sub(1) < from_col {
-                cands.push((from_row - 2, from_col - 1));
-            }
+        if from_col.saturating_sub(1) < from_col {
+            cands.insert((from_row + 2, from_col - 1));
         }
-        // 2-rechts 1-oben/unte
-        if from_col + 2 < 8 {
-            if from_row + 1 < 8 {
-                cands.push((from_row + 1, from_col + 2));
-            }
-            if from_row.saturating_sub(1) < from_row {
-                cands.push((from_row - 1, from_col + 2));
-            }
-        }
-
-        // 2 links 1-oben/unten
-        if from_col.saturating_sub(2) + 2 == from_col {
-            if from_row + 1 < 8 {
-                cands.push((from_row + 1, from_col - 2));
-            }
-            if from_row.saturating_sub(1) < from_row {
-                cands.push((from_row - 1, from_col - 2));
-            }
-        }
-        cands
-            .into_iter()
-            .filter(|(r, c)| match board[*r][*c] {
-                Some(block_fig) => knight_color != block_fig.player_color,
-                None => true,
-            })
-            .collect()
-    } else {
-        vec![]
     }
+    // 2-runter 1-links/rechts
+    if from_row.saturating_sub(2) + 2 == from_row {
+        if from_col + 1 < 8 {
+            cands.insert((from_row - 2, from_col + 1));
+        }
+        if from_col.saturating_sub(1) < from_col {
+            cands.insert((from_row - 2, from_col - 1));
+        }
+    }
+    // 2-rechts 1-oben/unte
+    if from_col + 2 < 8 {
+        if from_row + 1 < 8 {
+            cands.insert((from_row + 1, from_col + 2));
+        }
+        if from_row.saturating_sub(1) < from_row {
+            cands.insert((from_row - 1, from_col + 2));
+        }
+    }
+
+    // 2 links 1-oben/unten
+    if from_col.saturating_sub(2) + 2 == from_col {
+        if from_row + 1 < 8 {
+            cands.insert((from_row + 1, from_col - 2));
+        }
+        if from_row.saturating_sub(1) < from_row {
+            cands.insert((from_row - 1, from_col - 2));
+        }
+    }
+    cands
+        .into_iter()
+        .filter(|(r, c)| match board[*r][*c] {
+            Some(block_fig) => knight_color != block_fig.player_color,
+            None => true,
+        })
+        .collect()
 }
 
-pub fn king_moves(board: &Board, from_tile: (usize, usize)) -> Vec<(usize, usize)> {
+pub fn king_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(usize, usize)> {
     let (r, c) = from_tile;
-    let mut cands: Vec<(usize, usize)> = Vec::new();
-    if let Some(fig) = board[r][c] {
-        let king_color = fig.player_color;
+    let mut cands = HashSet::new();
+    let fig = board[r][c].unwrap();
+    let king_color = fig.player_color;
 
-        // Rechts
-        if c + 1 < 8 {
-            cands.push((r, c + 1));
-        }
-
-        // Oben-Rechts
-        if r + 1 < 8 && c + 1 < 8 {
-            cands.push((r + 1, c + 1));
-        }
-
-        // Oben
-        if r + 1 < 8 {
-            cands.push((r + 1, c));
-        }
-
-        // Oben links
-        if r + 1 < 8 && c.saturating_sub(1) + 1 == c {
-            cands.push((r + 1, c - 1));
-        }
-
-        // Links
-        if c.saturating_sub(1) + 1 == c {
-            cands.push((r, c - 1));
-        }
-
-        // Unten Links
-        if c.saturating_sub(1) + 1 == c && r.saturating_sub(1) + 1 == r {
-            cands.push((r - 1, c - 1));
-        }
-        // Unten
-        if r.saturating_sub(1) + 1 == r {
-            cands.push((r - 1, c));
-        }
-        // Unten rechts
-
-        if r.saturating_sub(1) + 1 == r && c + 1 < 8 {
-            cands.push((r - 1, c + 1));
-        }
-
-        cands
-            .into_iter()
-            .filter(|(r, c)| match board[*r][*c] {
-                Some(block_fig) => king_color != block_fig.player_color,
-                None => true,
-            })
-            .collect()
-    } else {
-        vec![]
+    // Rechts
+    if c + 1 < 8 {
+        cands.insert((r, c + 1));
     }
+
+    // Oben-Rechts
+    if r + 1 < 8 && c + 1 < 8 {
+        cands.insert((r + 1, c + 1));
+    }
+
+    // Oben
+    if r + 1 < 8 {
+        cands.insert((r + 1, c));
+    }
+
+    // Oben links
+    if r + 1 < 8 && c.saturating_sub(1) + 1 == c {
+        cands.insert((r + 1, c - 1));
+    }
+
+    // Links
+    if c.saturating_sub(1) + 1 == c {
+        cands.insert((r, c - 1));
+    }
+
+    // Unten Links
+    if c.saturating_sub(1) + 1 == c && r.saturating_sub(1) + 1 == r {
+        cands.insert((r - 1, c - 1));
+    }
+    // Unten
+    if r.saturating_sub(1) + 1 == r {
+        cands.insert((r - 1, c));
+    }
+    // Unten rechts
+
+    if r.saturating_sub(1) + 1 == r && c + 1 < 8 {
+        cands.insert((r - 1, c + 1));
+    }
+
+    cands
+        .into_iter()
+        .filter(|(r, c)| match board[*r][*c] {
+            Some(block_fig) => king_color != block_fig.player_color,
+            None => true,
+        })
+        .collect()
 }
