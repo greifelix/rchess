@@ -11,7 +11,42 @@ pub struct MoveBuilder {
     pub moveset: HashSet<(usize, usize)>,
 }
 
+// Check whether there is an attacker who threatens our king
+pub fn find_attacker(my_color: PlayerColor, board: &Board) -> Option<Attacker> {
+    let king_pos = board.get_king_position(my_color);
+    board
+        .get_busy_tiles(my_color.other_player())
+        .into_iter()
+        .find(|(r, c)| {
+            MoveBuilder::new((*r, *c), board.clone())
+                .calculate_naive_moves()
+                .extract()
+                .to
+                .contains(&king_pos)
+        })
+        .map(|(r, c)| Attacker {
+            fig: board.get_fig_on_tile(r, c).unwrap(),
+            tile: (r, c),
+        })
+}
+
 impl MoveBuilder {
+    /// Method to calculate all **valid** moves of the given player
+    pub fn calculate_all(board: &Board, player_color: PlayerColor) -> Vec<PossibleMoves> {
+        board
+            .get_busy_tiles(player_color)
+            .into_iter()
+            .map(|(r, c)| {
+                let maybe_attacker = find_attacker(player_color, board); 
+                MoveBuilder::new((r, c), board.clone())
+                    .calculate_naive_moves()
+                    .block_selfchecking_moves()
+                    .filter_moves_in_check(maybe_attacker)
+                    .extract()
+            })
+            .collect()
+    }
+
     pub fn new(fig_pos: (usize, usize), board: Board) -> MoveBuilder {
         let fig = board.get_fig_on_tile(fig_pos.0, fig_pos.1).unwrap();
         let king_pos = board.get_king_position(fig.player_color);
@@ -81,19 +116,17 @@ impl MoveBuilder {
                     let mut board_clone = self.board.clone();
                     board_clone[*to_row][*to_col] = board_clone[from_row][from_col].take();
 
-                    let enemy_tiles = self.board.clone().get_busy_tiles(
-                        self.fig.player_color.other_player(),
-                    );
+                    let enemy_tiles = self
+                        .board
+                        .clone()
+                        .get_busy_tiles(self.fig.player_color.other_player());
 
                     if enemy_tiles.into_iter().any(|(enemy_row, enemy_col)| {
-                        MoveBuilder::new(
-                            (enemy_row, enemy_col),
-                            board_clone
-                        )
-                        .calculate_naive_moves()
-                        .extract()
-                        .to
-                        .contains(&(*to_row, *to_col))
+                        MoveBuilder::new((enemy_row, enemy_col), board_clone)
+                            .calculate_naive_moves()
+                            .extract()
+                            .to
+                            .contains(&(*to_row, *to_col))
                     }) {
                         guilty_moves.insert((*to_row, *to_col));
                     }
@@ -270,9 +303,6 @@ pub fn pos_rel_to_king(fig_pos: (usize, usize), king_pos: (usize, usize)) -> Pos
     }
 }
 
-
-
-
 // ++++++++++++++++++ Each individual figure move ++++++++++++++++++
 pub fn white_pawn_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(usize, usize)> {
     let (from_row, from_col) = from_tile;
@@ -308,8 +338,6 @@ pub fn white_pawn_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(us
 
     out
 }
-
-
 
 pub fn black_pawn_moves(board: &Board, from_tile: (usize, usize)) -> HashSet<(usize, usize)> {
     let (from_row, from_col) = from_tile;

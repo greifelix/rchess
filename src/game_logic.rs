@@ -73,7 +73,7 @@ impl Board {
                 _ => false,
             })
             .collect()
-    }
+    }    
 }
 
 #[derive(Resource)]
@@ -83,9 +83,11 @@ pub struct GameState {
     pub chosen_figure: Option<(Figure, usize, usize)>,
     pub possible_moves: Option<PossibleMoves>,
     pub under_attack: Option<Attacker>,
+    pub move_number:usize
 }
 
 impl GameState {
+    /// Despawns chess piece asset, does not update game state otherwise
     pub fn despawn_target(
         &self,
         commands: &mut Commands,
@@ -99,7 +101,7 @@ impl GameState {
         }
     }
 
-    /// Executes the chosen move, if it is valid. In case the move is invalid, nothing will happen d
+    /// Executes the chosen move, if it is valid. In case the move is invalid, nothing will happen
     pub fn execute_move(
         &mut self,
         commands: &mut Commands,
@@ -127,12 +129,14 @@ impl GameState {
         }
         self.chosen_figure = None;
         self.possible_moves = None;
+        self.move_number+=1;
     }
 
     pub fn get_fig_on_tile(&self, row: usize, col: usize) -> Option<Figure> {
         self.board[row][col]
     }
 
+    // Checks if one of the picked moves of the PLAYER is valid
     pub fn move_is_valid(&self, from_tile: (usize, usize), to_tile: (usize, usize)) -> bool {
         if let Some(moves) = &self.possible_moves {
             from_tile == moves.from_tile && moves.to.contains(&to_tile)
@@ -148,7 +152,6 @@ impl GameState {
             .get_king_position(self.player_turn.other_player());
 
         // Here we assume that the move was already executed!
-
         if MoveBuilder::new(attacker_tile, self.board.clone())
             .calculate_naive_moves()
             .extract()
@@ -380,6 +383,7 @@ impl GameState {
             chosen_figure: None,
             possible_moves: None,
             under_attack: None,
+            move_number:0
         }
     }
 }

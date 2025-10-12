@@ -5,6 +5,8 @@ use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use crate::game_logic::movement_logic::MoveBuilder;
 
+use crate::game_logic::minmax_logic;
+
 mod game_logic;
 mod utils;
 
@@ -14,8 +16,16 @@ fn main() {
         .add_plugins(EguiPlugin::default())
         .add_plugins(WorldInspectorPlugin::new())
         .insert_resource(game_logic::GameState::new())
+        .insert_resource(game_logic::minmax_logic::GeneratedMoves::new())
         .add_systems(Startup, (environment_setup, board_setup).chain())
         .add_systems(Update, figure_picking)
+        .add_systems(
+            Update,
+            (
+                minmax_logic::spawn_minmax_task,
+                minmax_logic::retrieve_and_exec_minmax_result,
+            ),
+        )
         .run();
 }
 
@@ -66,7 +76,6 @@ fn board_setup(
         }
     }
 }
-
 
 fn figure_picking(
     mut commands: Commands,
