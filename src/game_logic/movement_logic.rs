@@ -32,12 +32,13 @@ pub fn find_attacker(my_color: PlayerColor, board: &Board) -> Option<Attacker> {
 
 impl MoveBuilder {
     /// Method to calculate all **valid** moves of the given player
+    /// ToDo: Maybe do one implementation where attacker is contained in arguments and saved from previous moves!
     pub fn calculate_all(board: &Board, player_color: PlayerColor) -> Vec<PossibleMoves> {
         board
             .get_busy_tiles(player_color)
             .into_iter()
             .map(|(r, c)| {
-                let maybe_attacker = find_attacker(player_color, board); 
+                let maybe_attacker = find_attacker(player_color, board);
                 MoveBuilder::new((r, c), board.clone())
                     .calculate_naive_moves()
                     .block_selfchecking_moves()
@@ -87,71 +88,63 @@ impl MoveBuilder {
         if let Some(attacker) = maybe_attacker
             && self.fig.fig_type != FigType::King
         {
-            let attack_angle = movement_logic::pos_rel_to_king(attacker.tile, self.king_pos);
-
             let stopping_moves: HashSet<(usize, usize)> = match attacker.fig.fig_type {
                 FigType::King => panic!("Attacker can never be the enemy king."),
                 FigType::Knight | FigType::Pawn => HashSet::from([attacker.tile]), // Pawns and Knights can only be stopped by killing move
                 FigType::Rook | FigType::Bishop | FigType::Queen => {
-                    movement_logic::get_tiles_between(attack_angle, self.king_pos, attacker.tile)
-                        .collect()
+                    movement_logic::get_tiles_between(
+                        movement_logic::pos_rel_to_king(attacker.tile, self.king_pos),
+                        self.king_pos,
+                        attacker.tile,
+                    )
+                    .collect()
                 }
             };
-
-            self.moveset = self
-                .moveset
-                .intersection(&stopping_moves)
-                .copied()
-                .collect();
+            self.moveset.retain(|m| stopping_moves.contains(m));
         }
         self
     }
 
+    /// Block moves that would put ourselfes in check.
     pub fn block_selfchecking_moves(mut self) -> MoveBuilder {
-        let mut guilty_moves = HashSet::new();
         let (from_row, from_col) = self.fig_pos;
         match self.fig.fig_type {
             FigType::King => {
-                for (to_row, to_col) in self.moveset.iter() {
+                self.moveset.retain(|(to_row, to_col)| {
                     let mut board_clone = self.board.clone();
                     board_clone[*to_row][*to_col] = board_clone[from_row][from_col].take();
 
-                    let enemy_tiles = self
-                        .board
-                        .clone()
-                        .get_busy_tiles(self.fig.player_color.other_player());
+                    let enemy_tiles =
+                        board_clone.get_busy_tiles(self.fig.player_color.other_player());
 
-                    if enemy_tiles.into_iter().any(|(enemy_row, enemy_col)| {
+                    !enemy_tiles.into_iter().any(|(enemy_row, enemy_col)| {
                         MoveBuilder::new((enemy_row, enemy_col), board_clone)
                             .calculate_naive_moves()
                             .extract()
                             .to
                             .contains(&(*to_row, *to_col))
-                    }) {
-                        guilty_moves.insert((*to_row, *to_col));
-                    }
-                }
+                    })
+                });
             }
             _ => {
+                // Threat may emerge if we move OWN figure, potentially opening a line for enemy
                 let possible_threat_direction =
                     movement_logic::pos_rel_to_king(self.fig_pos, self.king_pos);
-                for (to_row, to_col) in self.moveset.iter() {
+
+                self.moveset.retain(|(to_row, to_col)| {
                     let mut test_board = self.board.clone();
                     test_board[*to_row][*to_col] = test_board[from_row][from_col].take();
 
-                    if movement_logic::threats_detected(
+                    !movement_logic::threats_detected(
                         self.king_pos,
                         test_board,
                         possible_threat_direction,
                         self.fig.player_color.other_player(),
-                    ) {
-                        guilty_moves.insert((*to_row, *to_col));
-                    }
-                }
+                    )
+                });
             }
         };
 
-        self.moveset = self.moveset.difference(&guilty_moves).copied().collect();
         self
     }
 }
@@ -193,6 +186,8 @@ pub fn get_tiles_between(
     }
 }
 
+/// We want to move one figure. The position relative to our own king prior to the move determines whether
+/// a threat may emerge. TODO: We may check whether the relative position changes, because only then we may have a problem
 pub fn threats_detected(
     king_pos: (usize, usize),
     board: Board,
