@@ -8,6 +8,7 @@ bevy = "0.16.1"
 bevy-inspector-egui = "0.32.0"
 bevy_egui = "0.35.1"
 itertools = "0.14.0"
+rayon = "1.11.0"
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]
