@@ -1,14 +1,18 @@
 pub mod minmax_logic;
 pub mod movement_logic;
 
-use bevy::prelude::*;
+use bevy::{platform::collections::HashMap, prelude::*};
 use itertools::iproduct;
 use std::cmp::Ordering;
+// use bevy::platform::collections::HashSet;
 use std::collections::HashSet;
 
-use crate::{game_logic::movement_logic::MoveBuilder, utils::idx_to_coordinates};
+use crate::{
+    game_logic::movement_logic::MoveBuilder,
+    utils::{self, idx_to_coordinates, king_prox},
+};
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum FigType {
     Pawn,
     Rook,
@@ -17,6 +21,23 @@ pub enum FigType {
     Queen,
     King,
 }
+
+impl FigType {
+    pub fn pins_in_direction(&self, dir: Direction) -> bool {
+        match (*self, dir) {
+            (
+                Self::Bishop | Self::Queen,
+                Direction::AL | Direction::AR | Direction::BL | Direction::BR,
+            ) => true,
+            (
+                Self::Rook | Self::Queen,
+                Direction::A | Direction::B | Direction::L | Direction::R,
+            ) => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PlayerColor {
     Black,
@@ -38,16 +59,69 @@ pub struct Figure {
     pub ass_name: &'static str,
     pub player_color: PlayerColor,
 }
+/// Right, AboveRight,Above,AboveLeft,Left,BelowLeft,Below,BelowRight
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum Direction {
+    R,
+    AR,
+    A,
+    AL,
+    L,
+    BL,
+    B,
+    BR,
+    Unrelated,
+}
+
+impl Direction {
+    pub fn determine_direction_from_to(
+        source_pos: (usize, usize),
+        target_pos: (usize, usize),
+    ) -> Self {
+        match (
+            target_pos.0.cmp(&source_pos.0),
+            target_pos.1.cmp(&source_pos.1),
+        ) {
+            (Ordering::Equal, Ordering::Greater) => Self::R,
+            (Ordering::Equal, Ordering::Less) => Self::L,
+            (Ordering::Greater, Ordering::Equal) => Self::A,
+            (Ordering::Less, Ordering::Equal) => Self::B,
+            (Ordering::Greater, Ordering::Greater) => {
+                if target_pos.0 - source_pos.0 == target_pos.1 - source_pos.1 {
+                    Self::AR
+                } else {
+                    Self::Unrelated
+                }
+            }
+            (Ordering::Less, Ordering::Less) => {
+                if source_pos.0 - target_pos.0 == source_pos.1 - target_pos.1 {
+                    Self::BL
+                } else {
+                    Self::Unrelated
+                }
+            }
+            (Ordering::Greater, Ordering::Less) => {
+                if target_pos.0 - source_pos.0 == source_pos.1 - target_pos.1 {
+                    Self::AL
+                } else {
+                    Self::Unrelated
+                }
+            }
+            (Ordering::Less, Ordering::Greater) => {
+                if source_pos.0 - target_pos.0 == target_pos.1 - source_pos.1 {
+                    Self::BR
+                } else {
+                    Self::Unrelated
+                }
+            }
+            _ => Self::Unrelated,
+        }
+    }
+}
 
 pub struct PossibleMoves {
     pub from_tile: (usize, usize),
     pub to: HashSet<(usize, usize)>,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct Attacker {
-    fig: Figure,
-    tile: (usize, usize),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, DerefMut, Deref)]
@@ -66,14 +140,156 @@ impl Board {
         self[row][col]
     }
 
-    pub fn get_busy_tiles(&self, player_color: PlayerColor) -> Vec<(usize, usize)> {
+    pub fn get_busy_tiles(&self, player_color: PlayerColor) -> HashSet<(usize, usize)> {
         iproduct!(0..8, 0..8)
             .filter(|(r, c)| match self[*r][*c] {
                 Some(fig) if fig.player_color == player_color => true,
                 _ => false,
             })
             .collect()
-    }    
+    }
+
+    pub fn guarding_figures(
+        &self,
+        king_color: PlayerColor,
+        king_pos: (usize, usize),
+    ) -> HashMap<(usize, usize), (Direction, FigType)> {
+        let mut out: HashMap<(usize, usize), (Direction, FigType)> = HashMap::new();
+        let dirs = [
+            Direction::R,
+            Direction::AR,
+            Direction::A,
+            Direction::AL,
+            Direction::L,
+            Direction::BL,
+            Direction::B,
+            Direction::BR,
+        ];
+        dirs.into_iter().for_each(|dir| {
+            match self.get_first_fig_in_direction(king_pos, dir, (1, 7)) {
+                Some((f, r, c)) => {
+                    if f.player_color == king_color {
+                        out.insert((r, c), (dir, f.fig_type));
+                    }
+                }
+                None => (),
+            }
+        });
+
+        out
+    }
+
+    pub fn king_enemy_circle(
+        &self,
+        king_color: PlayerColor,
+        king_pos: (usize, usize),
+    ) -> HashMap<(usize, usize), (Direction, FigType)> {
+        let mut out: HashMap<(usize, usize), (Direction, FigType)> = HashMap::new();
+        let dirs = [
+            Direction::R,
+            Direction::AR,
+            Direction::A,
+            Direction::AL,
+            Direction::L,
+            Direction::BL,
+            Direction::B,
+            Direction::BR,
+        ];
+        dirs.into_iter().for_each(|dir| {
+            match self.get_first_fig_in_direction(king_pos, dir, (0, 8)) {
+                Some((f, r, c)) => {
+                    if f.player_color == king_color.other_player() {
+                        out.insert((r, c), (dir, f.fig_type));
+                    }
+                }
+                None => (),
+            }
+        });
+        utils::knights_reach(king_pos)
+            .into_iter()
+            .for_each(|(r, c)| match self[r][c] {
+                Some(fig)
+                    if fig.fig_type == FigType::Knight
+                        && fig.player_color == king_color.other_player() =>
+                {
+                    out.insert((r, c), (Direction::Unrelated, FigType::Knight));
+                }
+                Some(_) => (),
+                None => (),
+            });
+
+        out
+    }
+
+    pub fn player_in_check(&self, player: PlayerColor) -> Option<(usize, usize)> {
+        let my_king_pos = self.get_king_position(player);
+        let rank_threats = [FigType::Rook, FigType::Queen];
+        let diag_threats = [FigType::Bishop, FigType::Queen];
+
+        self.king_enemy_circle(player, my_king_pos)
+            .into_iter()
+            .find_map(|((r, c), (dir, fig_type))| match dir {
+                Direction::Unrelated => Some((r, c)), // In this case we have a knight! TODO: Maybe add another field: Knight-Prox instea,
+                Direction::R | Direction::A | Direction::L | Direction::B => {
+                    if rank_threats.contains(&fig_type) {
+                        Some((r, c))
+                    } else {
+                        None
+                    }
+                }
+                Direction::AR | Direction::AL | Direction::BL | Direction::BR => {
+                    if diag_threats.contains(&fig_type)
+                        || match fig_type {
+                            FigType::Pawn => movement_logic::MoveBuilder::new((r, c), &self)
+                                .calculate_naive_moves(&self)
+                                .extract()
+                                .to
+                                .contains(&my_king_pos),
+                            _ => false,
+                        }
+                    {
+                        Some((r, c))
+                    } else {
+                        None
+                    }
+                }
+            })
+    }
+
+    /// Get tiles in direction, starting from the source position which is exclusive and ending at the bounds of the board
+    /// In friendly mode
+    pub fn get_tiles_in_direction(
+        &self,
+        source_pos: (usize, usize),
+        direction: Direction,
+        bounds: (usize, usize), // low inclusiice,High is exlusive,
+    ) -> Box<dyn Iterator<Item = (usize, usize)>> {
+        let (source_row, source_col) = source_pos;
+        let (b_low, b_high) = bounds;
+        // NOTE: For the diagonals we rely on the fact, that one of the last elements in the diagonal is always either 0 or 7.
+        // Then the zipped other iterator will always be stopped early
+        match direction {
+            Direction::R => Box::new((source_col + 1..b_high).map(move |c| (source_row, c))),
+            Direction::AR => Box::new((source_row + 1..b_high).zip(source_col + 1..b_high)),
+            Direction::A => Box::new((source_row + 1..b_high).map(move |r| (r, source_col))),
+            Direction::AL => Box::new((source_row + 1..b_high).zip((b_low..source_col).rev())),
+            Direction::L => Box::new((b_low..source_col).rev().map(move |c| (source_row, c))),
+            Direction::BL => Box::new((b_low..source_row).rev().zip((b_low..source_col).rev())),
+            Direction::B => Box::new((b_low..source_row).rev().map(move |r| (r, source_col))), //change to rev?
+            Direction::BR => Box::new((b_low..source_row).rev().zip(source_col + 1..b_high)),
+            Direction::Unrelated => Box::new([].into_iter()),
+        }
+    }
+
+    pub fn get_first_fig_in_direction(
+        &self,
+        source_pos: (usize, usize),
+        direction: Direction,
+        bounds: (usize, usize),
+    ) -> Option<(Figure, usize, usize)> {
+        self.get_tiles_in_direction(source_pos, direction, bounds)
+            .find_map(|(r, c)| self[r][c].map(|f| (f, r, c)))
+    }
 }
 
 #[derive(Resource)]
@@ -82,8 +298,7 @@ pub struct GameState {
     pub player_turn: PlayerColor,
     pub chosen_figure: Option<(Figure, usize, usize)>,
     pub possible_moves: Option<PossibleMoves>,
-    pub under_attack: Option<Attacker>,
-    pub move_number:usize
+    pub move_number: usize,
 }
 
 impl GameState {
@@ -119,21 +334,11 @@ impl GameState {
                 self.despawn_target(commands, target.ass_name, query);
             }
             self.board[to_row][to_col] = self.board[from_row][from_col].take();
-            self.under_attack = self.enemy_in_check(to_tile);
-
-            if self.enemy_in_checkmate(){
-                println!("Game over, {:?}",self.player_turn.other_player());
-            }
-
             self.player_turn = self.player_turn.other_player();
         }
         self.chosen_figure = None;
         self.possible_moves = None;
-        self.move_number+=1;
-    }
-
-    pub fn get_fig_on_tile(&self, row: usize, col: usize) -> Option<Figure> {
-        self.board[row][col]
+        self.move_number += 1;
     }
 
     // Checks if one of the picked moves of the PLAYER is valid
@@ -142,52 +347,6 @@ impl GameState {
             from_tile == moves.from_tile && moves.to.contains(&to_tile)
         } else {
             false
-        }
-    }
-
-    /// Meant to be called after an own move to see whether enemy is in own naive possible moves
-    pub fn enemy_in_check(&self, attacker_tile: (usize, usize)) -> Option<Attacker> {
-        let king_pos = self
-            .board
-            .get_king_position(self.player_turn.other_player());
-
-        // Here we assume that the move was already executed!
-        if MoveBuilder::new(attacker_tile, self.board.clone())
-            .calculate_naive_moves()
-            .extract()
-            .to
-            .contains(&king_pos)
-        {
-            println!("Check!!!");
-            Some(Attacker {
-                fig: self
-                    .get_fig_on_tile(attacker_tile.0, attacker_tile.1)
-                    .unwrap(),
-                tile: attacker_tile,
-            })
-        } else {
-            None
-        }
-    }
-
-    pub fn enemy_in_checkmate(&self) -> bool {
-        match self.under_attack {
-            Some(attacker) => !self
-                .board
-                .get_busy_tiles(self.player_turn.other_player())
-                .into_iter()
-                .any(|(r, c)| {
-                    MoveBuilder::new((r, c), self.board.clone())
-                        .calculate_naive_moves()
-                        .filter_moves_in_check(Some(attacker))
-                        .block_selfchecking_moves()
-                        .extract()
-                        .to
-                        .iter()
-                        .count()
-                        > 0
-                }),
-            None => false,
         }
     }
 
@@ -382,8 +541,7 @@ impl GameState {
             player_turn: PlayerColor::White,
             chosen_figure: None,
             possible_moves: None,
-            under_attack: None,
-            move_number:0
+            move_number: 0,
         }
     }
 }

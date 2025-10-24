@@ -77,6 +77,7 @@ fn board_setup(
     }
 }
 
+// ToDo: Disable figure picking for one colour entirely in Multiplayer
 fn figure_picking(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -102,7 +103,7 @@ fn figure_picking(
             }
             // Case 2: We did not yet pick a valid figure and will pick the figure to be moved now
             else {
-                if let Some(fig) = game_state.get_fig_on_tile(clicked_row, clicked_col)
+                if let Some(fig) = game_state.board.get_fig_on_tile(clicked_row, clicked_col)
                     && fig.player_color == game_state.player_turn
                 {
                     game_state.chosen_figure = Some((fig, clicked_row, clicked_col));
@@ -110,12 +111,10 @@ fn figure_picking(
                     return;
                 }
 
-                let movelist =
-                    MoveBuilder::new((clicked_row, clicked_col), game_state.board.clone())
-                        .calculate_naive_moves()
-                        .filter_moves_in_check(game_state.under_attack)
-                        .block_selfchecking_moves()
-                        .extract();
+                let movelist = MoveBuilder::new((clicked_row, clicked_col), &game_state.board)
+                    .calculate_naive_moves(&game_state.board)
+                    .filter_brute_force(&game_state.board)
+                    .extract();
 
                 let move_list_str: Vec<String> = movelist
                     .to

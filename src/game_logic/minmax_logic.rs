@@ -1,13 +1,16 @@
-// Add code related to minmaxing the ai here
-
 use bevy::{
     prelude::*,
     tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future},
 };
 
-use std::collections::HashMap;
-
 use crate::game_logic::{Board, FigType, GameState, PlayerColor, PossibleMoves, movement_logic};
+// use bevy::platform::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
+
+// pub fn singleplayer_plugin(app: &mut App) {
+//     app.insert_resource(GeneratedMoves::new())
+//         .add_systems(Update, (spawn_minmax_task, retrieve_and_exec_minmax_result));
+// }
 
 #[derive(Copy, Clone, Debug)]
 pub struct MaxMove {
@@ -17,12 +20,12 @@ pub struct MaxMove {
 
 #[derive(Copy, Clone, Debug)]
 pub struct MinMaxData {
-    value: i32,
+    value: i16,
     max_move: Option<MaxMove>,
 }
 
 impl MinMaxData {
-    pub fn new_val(val: i32) -> MinMaxData {
+    pub fn new_val(val: i16) -> MinMaxData {
         MinMaxData {
             value: val,
             max_move: None,
@@ -31,6 +34,7 @@ impl MinMaxData {
 }
 
 const MAX_DEPTH: u8 = 4;
+const MAXIMIZER: PlayerColor = PlayerColor::Black;
 
 /// This is just used as means to save the generated moves over time
 #[derive(Resource)]
@@ -46,7 +50,7 @@ impl GeneratedMoves {
     }
 }
 
-pub fn evaluate_board(board: &Board) -> i32 {
+pub fn evaluate_board(board: &Board, maximizer: &PlayerColor) -> i16 {
     board
         .iter()
         .flatten()
@@ -58,12 +62,13 @@ pub fn evaluate_board(board: &Board) -> i32 {
                     FigType::Queen => 8,
                     FigType::Bishop => 3,
                     FigType::Knight => 3,
-                    FigType::King => 10_000,
+                    FigType::King => 0, // King does not matter as it is never hit
                 };
 
-                match fig.player_color {
-                    PlayerColor::Black => score,
-                    PlayerColor::White => -score,
+                if fig.player_color == *maximizer {
+                    score
+                } else {
+                    -score
                 }
             } else {
                 0
@@ -74,13 +79,14 @@ pub fn evaluate_board(board: &Board) -> i32 {
 
 /// Spawns an asynchronous task to find a move for the black player, in case there is not one spawned yet
 pub fn spawn_minmax_task(game_state: Res<GameState>, mut minmax_moves: ResMut<GeneratedMoves>) {
-    if game_state.player_turn == PlayerColor::Black
+    if game_state.player_turn == MAXIMIZER
         && !minmax_moves.data.contains_key(&game_state.move_number)
     {
         let task_pool = AsyncComputeTaskPool::get();
+
         let board = game_state.board.clone();
         let task = task_pool.spawn(async move {
-            let found_move = mmax(PlayerColor::Black, MAX_DEPTH, board);
+            let found_move = mmax(MAXIMIZER, MAX_DEPTH, board);
             found_move.max_move
         });
 
@@ -113,7 +119,7 @@ pub fn retrieve_and_exec_minmax_result(
             // Ugly for now, but I have to add the move to the possible moves now :D
             game_state.possible_moves = Some(PossibleMoves {
                 from_tile: max_move.from_tile,
-                to: std::collections::HashSet::from([max_move.to_tile]),
+                to: HashSet::from([max_move.to_tile]),
             });
 
             game_state.execute_move(
@@ -127,19 +133,21 @@ pub fn retrieve_and_exec_minmax_result(
     }
 }
 
-/// Maximizing Player, right now this is hard coded to be the black player.
 pub fn mmax(player: PlayerColor, depth: u8, board: Board) -> MinMaxData {
-    if depth == 0 {
-        return MinMaxData::new_val(evaluate_board(&board));
-    }
-    let moves_all_figures = movement_logic::MoveBuilder::calculate_all(&board, player);
-    if moves_all_figures.len() == 0 {
-        return MinMaxData::new_val(evaluate_board(&board));
-    }
-    let mut max_value = -100_000;
-    let mut max_move: Option<MaxMove> = None;
+    let maxplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(&board, player);
+    let num_moves_left = maxplayer_moves.len();
+    let mut max_value = -1000;
 
-    for moves_one_figure in moves_all_figures {
+    if depth == 0 || num_moves_left == 0 {
+        if num_moves_left > 0 {
+            return MinMaxData::new_val(evaluate_board(&board, &MAXIMIZER));
+        } else {
+            return MinMaxData::new_val(evaluate_board(&board, &MAXIMIZER) + max_value);
+        }
+    }
+
+    let mut max_move: Option<MaxMove> = None;
+    for moves_one_figure in maxplayer_moves {
         let (from_row, from_col) = moves_one_figure.from_tile;
         for (to_row, to_col) in moves_one_figure.to {
             let mut board_copy = board.clone();
@@ -164,21 +172,19 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board) -> MinMaxData {
     }
 }
 
-pub fn mmin(
-    player: PlayerColor,
-    depth: u8,
-    board: Board,
-) -> i32 {
-    if depth == 0 {
-        return evaluate_board(&board);
-    }
-    let moves_all_figures = movement_logic::MoveBuilder::calculate_all(&board, player);
-    if moves_all_figures.len() == 0 {
-        return evaluate_board(&board);
-    }
-    let mut min_value = 100_000;
+pub fn mmin(player: PlayerColor, depth: u8, board: Board) -> i16 {
+    let minplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(&board, player);
+    let num_moves_left = minplayer_moves.len();
 
-    for moves_one_figure in moves_all_figures {
+    let mut min_value = 1000;
+    if depth == 0 || num_moves_left == 0 {
+        if num_moves_left > 0 {
+            return evaluate_board(&board, &MAXIMIZER);
+        } else {
+            return evaluate_board(&board, &MAXIMIZER) + min_value;
+        }
+    }
+    for moves_one_figure in minplayer_moves {
         let (from_row, from_col) = moves_one_figure.from_tile;
         for (to_row, to_col) in moves_one_figure.to {
             let mut board_copy = board.clone();
