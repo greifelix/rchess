@@ -86,7 +86,7 @@ pub fn spawn_minmax_task(game_state: Res<GameState>, mut minmax_moves: ResMut<Ge
 
         let board = game_state.board.clone();
         let task = task_pool.spawn(async move {
-            let found_move = mmax(MAXIMIZER, MAX_DEPTH, board);
+            let found_move = mmax(MAXIMIZER, MAX_DEPTH, board, -1000, 1000);
             found_move.max_move
         });
 
@@ -133,10 +133,10 @@ pub fn retrieve_and_exec_minmax_result(
     }
 }
 
-pub fn mmax(player: PlayerColor, depth: u8, board: Board) -> MinMaxData {
+pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16) -> MinMaxData {
     let maxplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(&board, player);
     let num_moves_left = maxplayer_moves.len();
-    let mut max_value = -1000;
+    let mut max_value = alpha;
 
     if depth == 0 || num_moves_left == 0 {
         if num_moves_left > 0 {
@@ -153,14 +153,27 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board) -> MinMaxData {
             let mut board_copy = board.clone();
             board_copy[to_row][to_col] = board_copy[from_row][from_col].take();
 
-            let min_val = mmin(player.other_player(), depth - 1, board_copy);
-            if min_val > max_value {
-                max_value = min_val;
+            let mmin_val = mmin(
+                player.other_player(),
+                depth - 1,
+                board_copy,
+                max_value,
+                beta,
+            );
+            if mmin_val > max_value {
+                max_value = mmin_val;
                 if depth == MAX_DEPTH {
                     max_move = Some(MaxMove {
                         from_tile: (from_row, from_col),
                         to_tile: (to_row, to_col),
                     })
+                }
+
+                if max_value >= beta {
+                    return MinMaxData {
+                        value: max_value,
+                        max_move: max_move,
+                    };
                 }
             }
         }
@@ -172,11 +185,11 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board) -> MinMaxData {
     }
 }
 
-pub fn mmin(player: PlayerColor, depth: u8, board: Board) -> i16 {
+pub fn mmin(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16) -> i16 {
     let minplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(&board, player);
     let num_moves_left = minplayer_moves.len();
 
-    let mut min_value = 1000;
+    let mut min_value = beta;
     if depth == 0 || num_moves_left == 0 {
         if num_moves_left > 0 {
             return evaluate_board(&board, &MAXIMIZER);
@@ -190,9 +203,20 @@ pub fn mmin(player: PlayerColor, depth: u8, board: Board) -> i16 {
             let mut board_copy = board.clone();
             board_copy[to_row][to_col] = board_copy[from_row][from_col].take();
 
-            let max_val = mmax(player.other_player(), depth - 1, board_copy).value;
-            if max_val < min_value {
-                min_value = max_val;
+            let mmax_val = mmax(
+                player.other_player(),
+                depth - 1,
+                board_copy,
+                alpha,
+                min_value,
+            )
+            .value;
+            if mmax_val < min_value {
+                min_value = mmax_val;
+            }
+
+            if min_value <= alpha {
+                return min_value;
             }
         }
     }
