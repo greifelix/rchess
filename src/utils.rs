@@ -1,4 +1,4 @@
-use bevy::{platform::collections::HashSet, prelude::*};
+use bevy::{math::ops::abs, platform::collections::HashSet, prelude::*};
 
 use crate::game_logic::Direction;
 use std::cmp::Ordering;
@@ -58,6 +58,11 @@ pub fn king_prox(fig_pos: (usize, usize), king_pos: (usize, usize)) -> Direction
         }
         _ => Direction::Unrelated,
     }
+}
+
+/// Figs are direct neighbots, horizontally, vertically or diagonal
+pub fn figs_adjacent(f1: (usize, usize), f2: (usize, usize)) -> bool {
+    (f1.0.abs_diff(f2.0)) < 2 && (f1.1.abs_diff(f2.1) < 2)
 }
 
 pub fn knights_reach(from_pos: (usize, usize)) -> HashSet<(usize, usize)> {

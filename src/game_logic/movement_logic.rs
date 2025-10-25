@@ -37,26 +37,42 @@ impl MoveBuilder {
         };
         self
     }
+    /// TODO: Achtung: König darf natürlich woanders hin
+    pub fn filter_not_in_set(mut self, filter_set: &HashSet<(usize, usize)>) -> MoveBuilder {
+        self.moveset.retain(|pos| filter_set.contains(pos));
+
+        self
+    }
 
     pub fn calculate_all_smarter(board: &Board, player_color: PlayerColor) -> Vec<PossibleMoves> {
-        // For now: In check, we filter with brute force
-        // TODO: Next step: Add a method to move builder "Stopping moves" or sth.
-        // Then filter only those stopping moves; do not; calculate the rest!
         let king_pos = board.get_king_position(player_color);
-        if let Some(threat_pos) = board.player_in_check(player_color) {
-            let dir_to_threat = Direction::determine_direction_from_to(king_pos, threat_pos);
-            // let mut tiles_to_threat: HashSet<(usize, usize)> =
-            //     board.get_tiles_until_block(king_pos, dir_to_threat);
+        if let Some((threat_r, threat_c, threat_type)) = board.player_in_check(player_color) {
+            let dir_to_threat =
+                Direction::determine_direction_from_to(king_pos, (threat_r, threat_c));
+
+            let mut stopper_tiles: HashSet<(usize, usize)> =
+                board.get_tiles_until_block(king_pos, dir_to_threat);
+            // This one is extra for knights as they are not found in direction
+            stopper_tiles.insert((threat_r, threat_c));
 
             board
                 .get_busy_tiles(player_color)
                 .into_iter()
                 // .into_par_iter()
                 .map(|(r, c)| {
-                    MoveBuilder::new((r, c), board)
-                        .calculate_naive_moves(board)
-                        .filter_brute_force(board)
-                        .extract()
+                    if (r, c) == king_pos {
+                        MoveBuilder::new((r, c), board)
+                            .calculate_naive_moves(board)
+                            ._filter_brute_force_2(board)
+                            .extract()
+                    } else {
+                        // Accelerate a little by using only some
+                        MoveBuilder::new((r, c), board)
+                            .calculate_naive_moves(board)
+                            .filter_not_in_set(&stopper_tiles)
+                            ._filter_brute_force_2(board)
+                            .extract()
+                    }
                 })
                 .filter(|x| x.to.len() > 0)
                 .collect()
@@ -90,7 +106,7 @@ impl MoveBuilder {
                         // 2. We got the king here, we filter carefully all moves. (For now)
                         None if (r, c) == king_pos => {
                             // naive_moves.filter_brute_force(board).extract()
-                            naive_moves._filter_king_moves(board).extract()
+                            naive_moves._filter_brute_force_2(board).extract()
                         }
 
                         // 3. fig not in guards, we can move without care
@@ -100,16 +116,6 @@ impl MoveBuilder {
                 .filter(|x| x.to.len() > 0)
                 .collect()
         }
-    }
-
-    pub fn _filter_king_moves(mut self, board: &Board) -> Self {
-        self.moveset.retain(|&(r, c)| {
-            let mut board_clone = board.clone();
-            board_clone[r][c] = board_clone[self.fig_pos.0][self.fig_pos.1].take();
-
-            board_clone.player_in_check(self.fig_color).is_none()
-        });
-        self
     }
 
     /// Filters all moves from the moveset with position changes to the king, compared to the start direction
@@ -125,25 +131,49 @@ impl MoveBuilder {
         self
     }
 
-    pub fn filter_brute_force(mut self, board: &Board) -> Self {
-        self.moveset.retain(|&(to_row, to_col)| {
-            let mut board_clone = board.clone();
-            board_clone[to_row][to_col] = board_clone[self.fig_pos.0][self.fig_pos.1].take();
-            let king_pos = board_clone.get_king_position(self.fig_color);
-            !board_clone
-                .get_busy_tiles(self.fig_color.other_player())
-                .into_iter()
-                .any(|(r, c)| {
-                    MoveBuilder::new((r, c), &board_clone)
-                        .calculate_naive_moves(&board_clone)
-                        .extract()
-                        .to
-                        .contains(&king_pos)
-                })
-        });
+    /// This methods filter also works in check.
+    pub fn _filter_brute_force_2(mut self, board: &Board) -> Self {
+        match self.fig_type {
+            FigType::King => {
+                let enemy_king = board.get_king_position(self.fig_color.other_player());
+                self.moveset.retain(|&(r, c)| {
+                    let mut board_clone = board.clone();
+                    board_clone[r][c] = board_clone[self.fig_pos.0][self.fig_pos.1].take();
+                    board_clone.player_in_check(self.fig_color).is_none()
+                        && !utils::figs_adjacent(self.fig_pos, enemy_king)
+                });
+            }
+            _ => {
+                self.moveset.retain(|&(r, c)| {
+                    let mut board_clone = board.clone();
+                    board_clone[r][c] = board_clone[self.fig_pos.0][self.fig_pos.1].take();
+                    board_clone.player_in_check(self.fig_color).is_none()
+                });
+            }
+        }
 
         self
     }
+
+    // pub fn filter_brute_force(mut self, board: &Board) -> Self {
+    //     self.moveset.retain(|&(to_row, to_col)| {
+    //         let mut board_clone = board.clone();
+    //         board_clone[to_row][to_col] = board_clone[self.fig_pos.0][self.fig_pos.1].take();
+    //         let king_pos = board_clone.get_king_position(self.fig_color);
+    //         !board_clone
+    //             .get_busy_tiles(self.fig_color.other_player())
+    //             .into_iter()
+    //             .any(|(r, c)| {
+    //                 MoveBuilder::new((r, c), &board_clone)
+    //                     .calculate_naive_moves(&board_clone)
+    //                     .extract()
+    //                     .to
+    //                     .contains(&king_pos)
+    //             })
+    //     });
+
+    //     self
+    // }
 
     pub fn extract(self) -> PossibleMoves {
         PossibleMoves {

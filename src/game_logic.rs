@@ -222,7 +222,7 @@ impl Board {
     }
 
     // If player is in check, returns the threat
-    pub fn player_in_check(&self, player: PlayerColor) -> Option<(usize, usize)> {
+    pub fn player_in_check(&self, player: PlayerColor) -> Option<(usize, usize,FigType)> {
         let my_king_pos = self.get_king_position(player);
         let rank_threats = [FigType::Rook, FigType::Queen];
         let diag_threats = [FigType::Bishop, FigType::Queen];
@@ -230,10 +230,10 @@ impl Board {
         self.king_enemy_circle(player, my_king_pos)
             .into_iter()
             .find_map(|((r, c), (dir, fig_type))| match dir {
-                Direction::Unrelated => Some((r, c)), // In this case we have a knight! TODO: Maybe add another field: Knight-Prox instea,
+                Direction::Unrelated => Some((r, c,fig_type)), // In this case we have a knight! 
                 Direction::R | Direction::A | Direction::L | Direction::B => {
                     if rank_threats.contains(&fig_type) {
-                        Some((r, c))
+                        Some((r, c,fig_type))
                     } else {
                         None
                     }
@@ -249,7 +249,7 @@ impl Board {
                             _ => false,
                         }
                     {
-                        Some((r, c))
+                        Some((r, c,fig_type))
                     } else {
                         None
                     }
@@ -282,6 +282,7 @@ impl Board {
         }
     }
     /// Gets tiles until a figure is hit; inlcudes the figure here
+    ///TODO: Rook???
     pub fn get_tiles_until_block(
         &self,
         source_pos: (usize, usize),

@@ -113,7 +113,7 @@ fn figure_picking(
 
                 let movelist = MoveBuilder::new((clicked_row, clicked_col), &game_state.board)
                     .calculate_naive_moves(&game_state.board)
-                    .filter_brute_force(&game_state.board)
+                    ._filter_brute_force_2(&game_state.board)
                     .extract();
 
                 let move_list_str: Vec<String> = movelist
