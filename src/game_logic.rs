@@ -2,7 +2,7 @@ pub mod minmax_logic;
 pub mod movement_logic;
 
 use bevy::{platform::collections::HashMap, prelude::*};
-use itertools::iproduct;
+use itertools::{Itertools, iproduct};
 use std::cmp::Ordering;
 // use bevy::platform::collections::HashSet;
 use std::collections::HashSet;
@@ -221,6 +221,7 @@ impl Board {
         out
     }
 
+    // If player is in check, returns the threat
     pub fn player_in_check(&self, player: PlayerColor) -> Option<(usize, usize)> {
         let my_king_pos = self.get_king_position(player);
         let rank_threats = [FigType::Rook, FigType::Queen];
@@ -279,6 +280,16 @@ impl Board {
             Direction::BR => Box::new((b_low..source_row).rev().zip(source_col + 1..b_high)),
             Direction::Unrelated => Box::new([].into_iter()),
         }
+    }
+    /// Gets tiles until a figure is hit; inlcudes the figure here
+    pub fn get_tiles_until_block(
+        &self,
+        source_pos: (usize, usize),
+        direction: Direction,
+    ) -> HashSet<(usize, usize)> {
+        self.get_tiles_in_direction(source_pos, direction, (0, 8))
+            .take_while_inclusive(|&(r, c)| self[r][c].is_none())
+            .collect()
     }
 
     pub fn get_first_fig_in_direction(

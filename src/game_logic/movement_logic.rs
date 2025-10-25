@@ -1,4 +1,5 @@
 use crate::game_logic::*;
+use bevy_egui::egui::menu::bar;
 use rayon::prelude::*;
 
 pub struct MoveBuilder {
@@ -21,20 +22,7 @@ impl MoveBuilder {
             moveset: HashSet::new(),
         }
     }
-
-    /// Filters all moves from the moveset with position changes to the king, compared to the start direction
-    pub fn _filter_postion_changes_to_king(
-        mut self,
-        king_pos: &(usize, usize),
-        start_direction: Direction,
-    ) -> Self {
-        self.moveset.retain(|&target_pos| {
-            start_direction == Direction::determine_direction_from_to(*king_pos, target_pos)
-        });
-
-        self
-    }
-
+    /// Naively calculates the moves of one figure
     pub fn calculate_naive_moves(mut self, board: &Board) -> MoveBuilder {
         self.moveset = match self.fig_type {
             FigType::Pawn => match self.fig_color {
@@ -50,32 +38,16 @@ impl MoveBuilder {
         self
     }
 
-    pub fn filter_brute_force(mut self, board: &Board) -> Self {
-        self.moveset.retain(|&(to_row, to_col)| {
-            let mut board_clone = board.clone();
-            board_clone[to_row][to_col] = board_clone[self.fig_pos.0][self.fig_pos.1].take();
-            let king_pos = board_clone.get_king_position(self.fig_color);
-            !board_clone
-                .get_busy_tiles(self.fig_color.other_player())
-                .into_iter()
-                .any(|(r, c)| {
-                    MoveBuilder::new((r, c), &board_clone)
-                        .calculate_naive_moves(&board_clone)
-                        .extract()
-                        .to
-                        .contains(&king_pos)
-                })
-        });
-
-        self
-    }
-
     pub fn calculate_all_smarter(board: &Board, player_color: PlayerColor) -> Vec<PossibleMoves> {
         // For now: In check, we filter with brute force
         // TODO: Next step: Add a method to move builder "Stopping moves" or sth.
         // Then filter only those stopping moves; do not; calculate the rest!
         let king_pos = board.get_king_position(player_color);
-        if let Some(_) = board.player_in_check(player_color) {
+        if let Some(threat_pos) = board.player_in_check(player_color) {
+            let dir_to_threat = Direction::determine_direction_from_to(king_pos, threat_pos);
+            // let mut tiles_to_threat: HashSet<(usize, usize)> =
+            //     board.get_tiles_until_block(king_pos, dir_to_threat);
+
             board
                 .get_busy_tiles(player_color)
                 .into_iter()
@@ -117,7 +89,8 @@ impl MoveBuilder {
                         }
                         // 2. We got the king here, we filter carefully all moves. (For now)
                         None if (r, c) == king_pos => {
-                            naive_moves.filter_brute_force(board).extract()
+                            // naive_moves.filter_brute_force(board).extract()
+                            naive_moves._filter_king_moves(board).extract()
                         }
 
                         // 3. fig not in guards, we can move without care
@@ -127,6 +100,49 @@ impl MoveBuilder {
                 .filter(|x| x.to.len() > 0)
                 .collect()
         }
+    }
+
+    pub fn _filter_king_moves(mut self, board: &Board) -> Self {
+        self.moveset.retain(|&(r, c)| {
+            let mut board_clone = board.clone();
+            board_clone[r][c] = board_clone[self.fig_pos.0][self.fig_pos.1].take();
+
+            board_clone.player_in_check(self.fig_color).is_none()
+        });
+        self
+    }
+
+    /// Filters all moves from the moveset with position changes to the king, compared to the start direction
+    pub fn _filter_postion_changes_to_king(
+        mut self,
+        king_pos: &(usize, usize),
+        start_direction: Direction,
+    ) -> Self {
+        self.moveset.retain(|&target_pos| {
+            start_direction == Direction::determine_direction_from_to(*king_pos, target_pos)
+        });
+
+        self
+    }
+
+    pub fn filter_brute_force(mut self, board: &Board) -> Self {
+        self.moveset.retain(|&(to_row, to_col)| {
+            let mut board_clone = board.clone();
+            board_clone[to_row][to_col] = board_clone[self.fig_pos.0][self.fig_pos.1].take();
+            let king_pos = board_clone.get_king_position(self.fig_color);
+            !board_clone
+                .get_busy_tiles(self.fig_color.other_player())
+                .into_iter()
+                .any(|(r, c)| {
+                    MoveBuilder::new((r, c), &board_clone)
+                        .calculate_naive_moves(&board_clone)
+                        .extract()
+                        .to
+                        .contains(&king_pos)
+                })
+        });
+
+        self
     }
 
     pub fn extract(self) -> PossibleMoves {
