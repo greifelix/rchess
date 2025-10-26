@@ -221,7 +221,8 @@ impl Board {
         out
     }
 
-    // If player is in check, returns the threat
+    /// Checks if the player is in check, if yes it returns the enemy-figure causing the check.
+    /// (This method can only handle legal board positions,e.g. adjacent kings can not be checked)
     pub fn player_in_check(&self, player: PlayerColor) -> Option<(usize, usize,FigType)> {
         let my_king_pos = self.get_king_position(player);
         let rank_threats = [FigType::Rook, FigType::Queen];

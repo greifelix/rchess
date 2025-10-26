@@ -140,7 +140,7 @@ impl MoveBuilder {
                     let mut board_clone = board.clone();
                     board_clone[r][c] = board_clone[self.fig_pos.0][self.fig_pos.1].take();
                     board_clone.player_in_check(self.fig_color).is_none()
-                        && !utils::figs_adjacent(self.fig_pos, enemy_king)
+                        && !utils::figs_adjacent((r,c), enemy_king)
                 });
             }
             _ => {
