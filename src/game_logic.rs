@@ -296,6 +296,7 @@ impl Board {
             })
             .expect("There will always be a king, so this should never panic.")
     }
+    // TODO: Delete this and replace by proper index method :D
     pub fn get_fig_on_tile(&self, row: usize, col: usize) -> Option<Figure> {
         self[row][col]
     }
@@ -424,7 +425,7 @@ impl Board {
         &self,
         source_pos: (usize, usize),
         direction: Direction,
-        bounds: (usize, usize), // low inclusiice,High is exlusive,
+        bounds: (usize, usize), // low inclusive,High is exlusive,
     ) -> Box<dyn Iterator<Item = (usize, usize)>> {
         let (source_row, source_col) = source_pos;
         let (b_low, b_high) = bounds;
