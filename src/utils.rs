@@ -117,7 +117,7 @@ pub fn rate_standard_move(moving: FigType, taken: Option<FigType>) -> u8 {
     let Some(taken) = taken else {
         return 0;
     };
-    println!("Moving figure {:?}",moving);
+    
     _moving_val(moving) + _taken_val(taken)
 }
 
