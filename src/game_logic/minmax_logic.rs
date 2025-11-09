@@ -3,7 +3,10 @@ use bevy::{
     tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future},
 };
 
-use crate::game_logic::{Board, FigType, GameState, PlayerColor, PossibleMoves, movement_logic};
+use crate::game_logic::{
+    Board, FigType, GameState, PlayerColor, PossibleMoves,
+    movement_logic::{self, ChessMove},
+};
 // use bevy::platform::collections::{HashMap, HashSet};
 use std::collections::{HashMap, HashSet};
 
@@ -33,7 +36,7 @@ impl MinMaxData {
     }
 }
 
-const MAX_DEPTH: u8 = 6;
+const MAX_DEPTH: u8 = 8;
 const MAXIMIZER: PlayerColor = PlayerColor::Black;
 
 /// This is just used as means to save the generated moves over time
@@ -51,7 +54,8 @@ impl GeneratedMoves {
 }
 
 pub fn evaluate_board(board: &Board, maximizer: &PlayerColor) -> i16 {
-    board.0
+    board
+        .0
         .iter()
         .flatten()
         .map(|maybe_fig| {
@@ -119,7 +123,7 @@ pub fn retrieve_and_exec_minmax_result(
             // Ugly for now, but I have to add the move to the possible moves now :D
             game_state.possible_moves = Some(PossibleMoves {
                 from_tile: max_move.from_tile,
-                to: HashSet::from([max_move.to_tile]),
+                to: HashSet::from([ChessMove::new(max_move.from_tile, max_move.to_tile, 0)]),
             });
 
             game_state.execute_move(
@@ -134,7 +138,8 @@ pub fn retrieve_and_exec_minmax_result(
 }
 
 pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16) -> MinMaxData {
-    let maxplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(&board, player);
+    let mut maxplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(&board, player);
+    maxplayer_moves.sort_unstable_by(|a, b| b.rating.cmp(&a.rating));
     let num_moves_left = maxplayer_moves.len();
     let mut max_value = alpha;
 
@@ -147,37 +152,41 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
     }
 
     let mut max_move: Option<MaxMove> = None;
-    for moves_one_figure in maxplayer_moves {
-        let (from_row, from_col) = moves_one_figure.from_tile;
-        for (to_row, to_col) in moves_one_figure.to {
-            let mut board_copy = board.clone();
-            board_copy[(to_row,to_col)] = board_copy[(from_row,from_col)].take();
 
-            let mmin_val = mmin(
-                player.other_player(),
-                depth - 1,
-                board_copy,
-                max_value,
-                beta,
-            );
-            if mmin_val > max_value {
-                max_value = mmin_val;
-                if depth == MAX_DEPTH {
-                    max_move = Some(MaxMove {
-                        from_tile: (from_row, from_col),
-                        to_tile: (to_row, to_col),
-                    })
-                }
+    // for moves_one_figure in maxplayer_moves {
+    //     let (from_row, from_col) = moves_one_figure.from_tile;
+    //     for (to_row, to_col) in moves_one_figure.to {
 
-                if max_value >= beta {
-                    return MinMaxData {
-                        value: max_value,
-                        max_move: max_move,
-                    };
-                }
+    for cm in maxplayer_moves {
+        let mut board_copy = board.clone();
+        board_copy[cm.to_tile] = board_copy[cm.from_tile].take();
+
+        let mmin_val = mmin(
+            player.other_player(),
+            depth - 1,
+            board_copy,
+            max_value,
+            beta,
+        );
+        if mmin_val > max_value {
+            max_value = mmin_val;
+            if depth == MAX_DEPTH {
+                max_move = Some(MaxMove {
+                    from_tile: cm.from_tile,
+                    to_tile: cm.to_tile,
+                })
+            }
+
+            if max_value >= beta {
+                return MinMaxData {
+                    value: max_value,
+                    max_move: max_move,
+                };
             }
         }
     }
+    // }
+    // }
 
     MinMaxData {
         value: max_value,
@@ -186,7 +195,10 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
 }
 
 pub fn mmin(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16) -> i16 {
-    let minplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(&board, player);
+    let mut minplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(&board, player);
+
+    minplayer_moves.sort_unstable_by(|a, b| b.rating.cmp(&a.rating));
+
     let num_moves_left = minplayer_moves.len();
 
     let mut min_value = beta;
@@ -197,28 +209,30 @@ pub fn mmin(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
             return evaluate_board(&board, &MAXIMIZER) + min_value;
         }
     }
-    for moves_one_figure in minplayer_moves {
-        let (from_row, from_col) = moves_one_figure.from_tile;
-        for (to_row, to_col) in moves_one_figure.to {
-            let mut board_copy = board.clone();
-            board_copy[(to_row,to_col)] = board_copy[(from_row,from_col)].take();
+    // for moves_one_figure in minplayer_moves {
+    //     let (from_row, from_col) = moves_one_figure.from_tile;
+    //     for (to_row, to_col) in moves_one_figure.to {
+    for cm in minplayer_moves {
+        let mut board_copy = board.clone();
+        board_copy[cm.to_tile] = board_copy[cm.from_tile].take();
 
-            let mmax_val = mmax(
-                player.other_player(),
-                depth - 1,
-                board_copy,
-                alpha,
-                min_value,
-            )
-            .value;
-            if mmax_val < min_value {
-                min_value = mmax_val;
-            }
+        let mmax_val = mmax(
+            player.other_player(),
+            depth - 1,
+            board_copy,
+            alpha,
+            min_value,
+        )
+        .value;
+        if mmax_val < min_value {
+            min_value = mmax_val;
+        }
 
-            if min_value <= alpha {
-                return min_value;
-            }
+        if min_value <= alpha {
+            return min_value;
         }
     }
+    //     }
+    // }
     min_value
 }

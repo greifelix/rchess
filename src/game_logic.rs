@@ -30,6 +30,7 @@ const BLACK_ROOK_L: Option<Figure> = Some(Figure {
     player_color: PlayerColor::Black,
 });
 
+use crate::game_logic::movement_logic::ChessMove;
 use crate::{
     game_logic::movement_logic::MoveBuilder,
     utils::{self, idx_to_coordinates, king_prox},
@@ -144,7 +145,7 @@ impl Direction {
 
 pub struct PossibleMoves {
     pub from_tile: (u8, u8),
-    pub to: HashSet<(u8, u8)>,
+    pub to: HashSet<ChessMove>,
 }
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct RochadeTracker {
@@ -421,7 +422,8 @@ impl Board {
                                 .calculate_naive_moves(&self)
                                 .extract()
                                 .to
-                                .contains(&my_king_pos),
+                                .iter().any(|x|x.to_tile==my_king_pos),
+                                // .contains(&my_king_pos),
                             _ => false,
                         }
                     {
@@ -531,7 +533,7 @@ impl GameState {
     // Checks if one of the picked moves of the PLAYER is valid
     pub fn move_is_valid(&self, from_tile: (u8, u8), to_tile: (u8, u8)) -> bool {
         if let Some(moves) = &self.possible_moves {
-            from_tile == moves.from_tile && moves.to.contains(&to_tile)
+            from_tile == moves.from_tile && moves.to.iter().any(|x|x.to_tile==to_tile)
         } else {
             false
         }

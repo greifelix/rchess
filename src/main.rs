@@ -119,7 +119,10 @@ fn figure_picking(
                 let move_list_str: Vec<String> = movelist
                     .to
                     .iter()
-                    .map(|(r, c)| format!("Tile_{r}_{c}"))
+                    .map(|cm| {
+                        let (r, c) = cm.to_tile;
+                        format!("Tile_{r}_{c}")
+                    })
                     .collect();
                 game_state.possible_moves = Some(movelist);
 
