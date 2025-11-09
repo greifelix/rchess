@@ -14,8 +14,8 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Copy, Clone, Debug)]
 pub struct MaxMove {
-    from_tile: (usize, usize),
-    to_tile: (usize, usize),
+    from_tile: (u8, u8),
+    to_tile: (u8, u8),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -33,7 +33,7 @@ impl MinMaxData {
     }
 }
 
-const MAX_DEPTH: u8 = 4;
+const MAX_DEPTH: u8 = 6;
 const MAXIMIZER: PlayerColor = PlayerColor::Black;
 
 /// This is just used as means to save the generated moves over time
@@ -51,7 +51,7 @@ impl GeneratedMoves {
 }
 
 pub fn evaluate_board(board: &Board, maximizer: &PlayerColor) -> i16 {
-    board
+    board.0
         .iter()
         .flatten()
         .map(|maybe_fig| {
@@ -151,7 +151,7 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
         let (from_row, from_col) = moves_one_figure.from_tile;
         for (to_row, to_col) in moves_one_figure.to {
             let mut board_copy = board.clone();
-            board_copy[to_row][to_col] = board_copy[from_row][from_col].take();
+            board_copy[(to_row,to_col)] = board_copy[(from_row,from_col)].take();
 
             let mmin_val = mmin(
                 player.other_player(),
@@ -201,7 +201,7 @@ pub fn mmin(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
         let (from_row, from_col) = moves_one_figure.from_tile;
         for (to_row, to_col) in moves_one_figure.to {
             let mut board_copy = board.clone();
-            board_copy[to_row][to_col] = board_copy[from_row][from_col].take();
+            board_copy[(to_row,to_col)] = board_copy[(from_row,from_col)].take();
 
             let mmax_val = mmax(
                 player.other_player(),

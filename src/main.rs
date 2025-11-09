@@ -62,8 +62,8 @@ fn board_setup(
 
     let square_size = 0.05;
 
-    for (row, _row_c) in ('1'..='8').enumerate() {
-        for (col, _col_c) in ('a'..='h').enumerate() {
+    for (row, _row_c) in (0..8).zip('1'..='8') {
+        for (col, _col_c) in (0..8).zip('a'..='h') {
             let (row_offset, col_offset) = utils::idx_to_coordinates(row, col);
 
             commands.spawn((

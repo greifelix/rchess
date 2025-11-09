@@ -1,14 +1,14 @@
 pub mod minmax_logic;
 pub mod movement_logic;
-
 use bevy::{platform::collections::HashMap, prelude::*};
 use itertools::{Itertools, iproduct};
 use std::cmp::Ordering;
+use std::ops::{Index, IndexMut};
 // use bevy::platform::collections::HashSet;
 use std::collections::HashSet;
 
-const WHITE_KING_SP: (usize, usize) = (0, 4);
-const BLACK_KING_SP: (usize, usize) = (7, 5);
+const WHITE_KING_SP: (u8, u8) = (0, 4);
+const BLACK_KING_SP: (u8, u8) = (7, 5);
 const WHITE_ROOK_R: Option<Figure> = Some(Figure {
     fig_type: FigType::Rook,
     ass_name: "Rook h1",
@@ -98,8 +98,8 @@ pub enum Direction {
 
 impl Direction {
     pub fn determine_direction_from_to(
-        source_pos: (usize, usize),
-        target_pos: (usize, usize),
+        source_pos: (u8, u8),
+        target_pos: (u8, u8),
     ) -> Self {
         match (
             target_pos.0.cmp(&source_pos.0),
@@ -143,8 +143,8 @@ impl Direction {
 }
 
 pub struct PossibleMoves {
-    pub from_tile: (usize, usize),
-    pub to: HashSet<(usize, usize)>,
+    pub from_tile: (u8, u8),
+    pub to: HashSet<(u8, u8)>,
 }
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct RochadeTracker {
@@ -199,52 +199,52 @@ impl RochadeTracker {
             (PlayerColor::White, Direction::L) => {
                 board.player_in_check(self.player).is_none()
                     && {
-                        board[WHITE_KING_SP.0][WHITE_KING_SP.1 - 1] =
-                            board[WHITE_KING_SP.0][WHITE_KING_SP.1].take();
+                        board[(WHITE_KING_SP.0,WHITE_KING_SP.1 - 1)] =
+                            board[(WHITE_KING_SP.0,WHITE_KING_SP.1)].take();
                         board.player_in_check(self.player).is_none()
                     }
                     && {
-                        board[WHITE_KING_SP.0][WHITE_KING_SP.1 - 2] =
-                            board[WHITE_KING_SP.0][WHITE_KING_SP.1 - 1].take();
+                        board[(WHITE_KING_SP.0,WHITE_KING_SP.1 - 2)] =
+                            board[(WHITE_KING_SP.0,WHITE_KING_SP.1 - 1)].take();
                         board.player_in_check(self.player).is_none()
                     }
             }
             (PlayerColor::White, Direction::R) => {
                 board.player_in_check(self.player).is_none()
                     && {
-                        board[WHITE_KING_SP.0][WHITE_KING_SP.1 + 1] =
-                            board[WHITE_KING_SP.0][WHITE_KING_SP.1].take();
+                        board[(WHITE_KING_SP.0,WHITE_KING_SP.1 + 1)] =
+                            board[(WHITE_KING_SP.0,WHITE_KING_SP.1)].take();
                         board.player_in_check(self.player).is_none()
                     }
                     && {
-                        board[WHITE_KING_SP.0][WHITE_KING_SP.1 + 2] =
-                            board[WHITE_KING_SP.0][WHITE_KING_SP.1 + 1].take();
+                        board[(WHITE_KING_SP.0,WHITE_KING_SP.1 + 2)] =
+                            board[(WHITE_KING_SP.0,WHITE_KING_SP.1 + 1)].take();
                         board.player_in_check(self.player).is_none()
                     }
             }
             (PlayerColor::Black, Direction::L) => {
                 board.player_in_check(self.player).is_none()
                     && {
-                        board[BLACK_KING_SP.0][BLACK_KING_SP.1 + 1] =
-                            board[BLACK_KING_SP.0][BLACK_KING_SP.1].take();
+                        board[(BLACK_KING_SP.0,BLACK_KING_SP.1 + 1)] =
+                            board[(BLACK_KING_SP.0,BLACK_KING_SP.1)].take();
                         board.player_in_check(self.player).is_none()
                     }
                     && {
-                        board[BLACK_KING_SP.0][BLACK_KING_SP.1 + 2] =
-                            board[BLACK_KING_SP.0][BLACK_KING_SP.1 + 1].take();
+                        board[(BLACK_KING_SP.0,BLACK_KING_SP.1 + 2)] =
+                            board[(BLACK_KING_SP.0,BLACK_KING_SP.1 + 1)].take();
                         board.player_in_check(self.player).is_none()
                     }
             }
             (PlayerColor::Black, Direction::R) => {
                 board.player_in_check(self.player).is_none()
                     && {
-                        board[BLACK_KING_SP.0][BLACK_KING_SP.1 - 1] =
-                            board[BLACK_KING_SP.0][BLACK_KING_SP.1].take();
+                        board[(BLACK_KING_SP.0,BLACK_KING_SP.1 - 1)] =
+                            board[(BLACK_KING_SP.0,BLACK_KING_SP.1)].take();
                         board.player_in_check(self.player).is_none()
                     }
                     && {
-                        board[BLACK_KING_SP.0][BLACK_KING_SP.1 - 2] =
-                            board[BLACK_KING_SP.0][BLACK_KING_SP.1 - 1].take();
+                        board[(BLACK_KING_SP.0,BLACK_KING_SP.1 - 2)] =
+                            board[(BLACK_KING_SP.0,BLACK_KING_SP.1 - 1)].take();
                         board.player_in_check(self.player).is_none()
                     }
             }
@@ -252,7 +252,7 @@ impl RochadeTracker {
         }
     }
 
-    pub fn update_tracker(&mut self, moved: (usize, usize)) {
+    pub fn update_tracker(&mut self, moved: (u8, u8)) {
         if self.king_moved || self.right_rook_moved || self.left_rook_moved {
             return;
         } else {
@@ -280,30 +280,44 @@ impl RochadeTracker {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, DerefMut, Deref)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Board(
-    #[deref] [[Option<Figure>; 8]; 8],
+    [[Option<Figure>; 8]; 8],
     RochadeTracker,
     RochadeTracker,
 );
 
+impl Index<(u8,u8)> for Board {
+    type Output = Option<Figure>;
+    fn index(&self, index: (u8,u8)) -> &Self::Output {
+        &self.0[index.0 as usize][index.1 as usize]
+    }
+}
+
+impl IndexMut<(u8,u8)> for Board {
+    fn index_mut(&mut self, index: (u8,u8)) -> &mut Self::Output {
+         &mut self.0[index.0 as usize][index.1 as usize]
+    }
+}
+
+
 impl Board {
-    pub fn get_king_position(&self, fig_color: PlayerColor) -> (usize, usize) {
+    pub fn get_king_position(&self, fig_color: PlayerColor) -> (u8, u8) {
         iproduct!(0..8, 0..8)
-            .find(|(r, c)| match self[*r][*c] {
+            .find(|p| match self[*p] {
                 Some(fig) => fig.player_color == fig_color && fig.fig_type == FigType::King,
                 None => false,
             })
             .expect("There will always be a king, so this should never panic.")
     }
     // TODO: Delete this and replace by proper index method :D
-    pub fn get_fig_on_tile(&self, row: usize, col: usize) -> Option<Figure> {
-        self[row][col]
+    pub fn get_fig_on_tile(&self, row: u8, col: u8) -> Option<Figure> {
+        self[(row,col)]
     }
 
-    pub fn get_busy_tiles(&self, player_color: PlayerColor) -> HashSet<(usize, usize)> {
+    pub fn get_busy_tiles(&self, player_color: PlayerColor) -> HashSet<(u8, u8)> {
         iproduct!(0..8, 0..8)
-            .filter(|(r, c)| match self[*r][*c] {
+            .filter(|p| match self[*p] {
                 Some(fig) if fig.player_color == player_color => true,
                 _ => false,
             })
@@ -313,9 +327,9 @@ impl Board {
     pub fn guarding_figures(
         &self,
         king_color: PlayerColor,
-        king_pos: (usize, usize),
-    ) -> HashMap<(usize, usize), (Direction, FigType)> {
-        let mut out: HashMap<(usize, usize), (Direction, FigType)> = HashMap::new();
+        king_pos: (u8, u8),
+    ) -> HashMap<(u8, u8), (Direction, FigType)> {
+        let mut out: HashMap<(u8, u8), (Direction, FigType)> = HashMap::new();
         let dirs = [
             Direction::R,
             Direction::AR,
@@ -343,9 +357,9 @@ impl Board {
     pub fn king_enemy_circle(
         &self,
         king_color: PlayerColor,
-        king_pos: (usize, usize),
-    ) -> HashMap<(usize, usize), (Direction, FigType)> {
-        let mut out: HashMap<(usize, usize), (Direction, FigType)> = HashMap::new();
+        king_pos: (u8, u8),
+    ) -> HashMap<(u8, u8), (Direction, FigType)> {
+        let mut out: HashMap<(u8, u8), (Direction, FigType)> = HashMap::new();
         let dirs = [
             Direction::R,
             Direction::AR,
@@ -368,12 +382,12 @@ impl Board {
         });
         utils::knights_reach(king_pos)
             .into_iter()
-            .for_each(|(r, c)| match self[r][c] {
+            .for_each(|p| match self[p] {
                 Some(fig)
                     if fig.fig_type == FigType::Knight
                         && fig.player_color == king_color.other_player() =>
                 {
-                    out.insert((r, c), (Direction::Unrelated, FigType::Knight));
+                    out.insert(p, (Direction::Unrelated, FigType::Knight));
                 }
                 Some(_) => (),
                 None => (),
@@ -384,7 +398,7 @@ impl Board {
 
     /// Checks if the player is in check, if yes it returns the enemy-figure causing the check.
     /// (This method can only handle legal board positions,e.g. adjacent kings can not be checked)
-    pub fn player_in_check(&self, player: PlayerColor) -> Option<(usize, usize, FigType)> {
+    pub fn player_in_check(&self, player: PlayerColor) -> Option<(u8, u8, FigType)> {
         let my_king_pos = self.get_king_position(player);
         let rank_threats = [FigType::Rook, FigType::Queen];
         let diag_threats = [FigType::Bishop, FigType::Queen];
@@ -423,10 +437,10 @@ impl Board {
     /// In friendly mode
     pub fn get_tiles_in_direction(
         &self,
-        source_pos: (usize, usize),
+        source_pos: (u8, u8),
         direction: Direction,
-        bounds: (usize, usize), // low inclusive,High is exlusive,
-    ) -> Box<dyn Iterator<Item = (usize, usize)>> {
+        bounds: (u8, u8), // low inclusive,High is exlusive,
+    ) -> Box<dyn Iterator<Item = (u8, u8)>> {
         let (source_row, source_col) = source_pos;
         let (b_low, b_high) = bounds;
         // NOTE: For the diagonals we rely on the fact, that one of the last elements in the diagonal is always either 0 or 7.
@@ -447,22 +461,22 @@ impl Board {
     ///TODO: Rook???
     pub fn get_tiles_until_block(
         &self,
-        source_pos: (usize, usize),
+        source_pos: (u8, u8),
         direction: Direction,
-    ) -> HashSet<(usize, usize)> {
+    ) -> HashSet<(u8, u8)> {
         self.get_tiles_in_direction(source_pos, direction, (0, 8))
-            .take_while_inclusive(|&(r, c)| self[r][c].is_none())
+            .take_while_inclusive(|&p| self[p].is_none())
             .collect()
     }
 
     pub fn get_first_fig_in_direction(
         &self,
-        source_pos: (usize, usize),
+        source_pos: (u8, u8),
         direction: Direction,
-        bounds: (usize, usize),
-    ) -> Option<(Figure, usize, usize)> {
+        bounds: (u8, u8),
+    ) -> Option<(Figure, u8, u8)> {
         self.get_tiles_in_direction(source_pos, direction, bounds)
-            .find_map(|(r, c)| self[r][c].map(|f| (f, r, c)))
+            .find_map(|(r, c)| self[(r,c)].map(|f| (f, r, c)))
     }
 }
 
@@ -470,7 +484,7 @@ impl Board {
 pub struct GameState {
     pub board: Board,
     pub player_turn: PlayerColor,
-    pub chosen_figure: Option<(Figure, usize, usize)>,
+    pub chosen_figure: Option<(Figure, u8, u8)>,
     pub possible_moves: Option<PossibleMoves>,
     pub move_number: usize,
 }
@@ -495,19 +509,18 @@ impl GameState {
         &mut self,
         commands: &mut Commands,
         to_be_moved: &str,
-        from_tile: (usize, usize),
-        to_tile: (usize, usize),
+        from_tile: (u8, u8),
+        to_tile: (u8, u8),
         query: &mut Query<(Entity, &Name, &mut Transform)>,
     ) {
         if self.move_is_valid(from_tile, to_tile) {
-            let (from_row, from_col) = from_tile;
-            let (to_row, to_col) = to_tile;
+
             move_asset(to_be_moved, query, to_tile);
 
-            if let Some(target) = self.board[to_row][to_col].take() {
+            if let Some(target) = self.board[to_tile].take() {
                 self.despawn_target(commands, target.ass_name, query);
             }
-            self.board[to_row][to_col] = self.board[from_row][from_col].take();
+            self.board[to_tile] = self.board[from_tile].take();
             self.player_turn = self.player_turn.other_player();
         }
         self.chosen_figure = None;
@@ -516,7 +529,7 @@ impl GameState {
     }
 
     // Checks if one of the picked moves of the PLAYER is valid
-    pub fn move_is_valid(&self, from_tile: (usize, usize), to_tile: (usize, usize)) -> bool {
+    pub fn move_is_valid(&self, from_tile: (u8, u8), to_tile: (u8, u8)) -> bool {
         if let Some(moves) = &self.possible_moves {
             from_tile == moves.from_tile && moves.to.contains(&to_tile)
         } else {
@@ -727,7 +740,7 @@ impl GameState {
 fn move_asset(
     asset_name: &str,
     query: &mut Query<'_, '_, (Entity, &Name, &mut Transform)>,
-    to_tile: (usize, usize),
+    to_tile: (u8, u8),
 ) {
     let (to_row, to_col) = to_tile;
     query

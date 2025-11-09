@@ -2,15 +2,15 @@ use bevy::{math::ops::abs, platform::collections::HashSet, prelude::*};
 
 use crate::game_logic::Direction;
 use std::cmp::Ordering;
-pub fn tile_to_indices(tile_name: &str) -> (usize, usize) {
+pub fn tile_to_indices(tile_name: &str) -> (u8, u8) {
     let sub_strings: Vec<&str> = tile_name.split_terminator('_').collect();
     (
-        sub_strings[1].parse::<usize>().unwrap(),
-        sub_strings[2].parse::<usize>().unwrap(),
+        sub_strings[1].parse::<u8>().unwrap(),
+        sub_strings[2].parse::<u8>().unwrap(),
     )
 }
 
-pub fn idx_to_coordinates(row: usize, col: usize) -> (f32, f32) {
+pub fn idx_to_coordinates(row: u8, col: u8) -> (f32, f32) {
     let square_size = 0.05;
     let offset = 0.025;
 
@@ -20,7 +20,7 @@ pub fn idx_to_coordinates(row: usize, col: usize) -> (f32, f32) {
 }
 
 /// NOTE: We do not check knight positions here
-pub fn king_prox(fig_pos: (usize, usize), king_pos: (usize, usize)) -> Direction {
+pub fn king_prox(fig_pos: (u8, u8), king_pos: (u8, u8)) -> Direction {
     let (king_row, king_col) = king_pos;
     let (fig_row, fig_col) = fig_pos;
     match (fig_row.cmp(&king_row), fig_col.cmp(&king_col)) {
@@ -61,11 +61,11 @@ pub fn king_prox(fig_pos: (usize, usize), king_pos: (usize, usize)) -> Direction
 }
 
 /// Figs are direct neighbots, horizontally, vertically or diagonal
-pub fn figs_adjacent(f1: (usize, usize), f2: (usize, usize)) -> bool {
+pub fn figs_adjacent(f1: (u8, u8), f2: (u8, u8)) -> bool {
     (f1.0.abs_diff(f2.0)) < 2 && (f1.1.abs_diff(f2.1) < 2)
 }
 
-pub fn knights_reach(from_pos: (usize, usize)) -> HashSet<(usize, usize)> {
+pub fn knights_reach(from_pos: (u8, u8)) -> HashSet<(u8, u8)> {
     let (from_row, from_col) = from_pos;
     let mut cands = HashSet::new();
     // 2-hoch 1-links/rechts
