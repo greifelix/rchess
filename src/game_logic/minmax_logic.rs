@@ -15,16 +15,12 @@ use std::collections::{HashMap, HashSet};
 //         .add_systems(Update, (spawn_minmax_task, retrieve_and_exec_minmax_result));
 // }
 
-#[derive(Copy, Clone, Debug)]
-pub struct MaxMove {
-    from_tile: (u8, u8),
-    to_tile: (u8, u8),
-}
 
-#[derive(Copy, Clone, Debug)]
+
+#[derive(Clone)]
 pub struct MinMaxData {
     value: i16,
-    max_move: Option<MaxMove>,
+    max_move: Option<ChessMove>,
 }
 
 impl MinMaxData {
@@ -42,7 +38,7 @@ const MAXIMIZER: PlayerColor = PlayerColor::Black;
 /// This is just used as means to save the generated moves over time
 #[derive(Resource)]
 pub struct GeneratedMoves {
-    data: HashMap<usize, Task<Option<MaxMove>>>,
+    data: HashMap<usize, Task<Option<ChessMove>>>,
 }
 
 impl GeneratedMoves {
@@ -106,7 +102,6 @@ pub fn retrieve_and_exec_minmax_result(
 ) {
     if let Some(t) = minmax_moves.data.get_mut(&game_state.move_number) {
         let status = block_on(future::poll_once(t));
-
         if status.is_some() {
             println!("The task finished!")
         }
@@ -115,22 +110,14 @@ pub fn retrieve_and_exec_minmax_result(
 
             let (from_row, from_col) = max_move.from_tile;
             let ass_name = game_state
-                .board
-                .get_fig_on_tile(from_row, from_col)
+                .board[(from_row, from_col)]
                 .unwrap()
                 .ass_name;
-
-            // Ugly for now, but I have to add the move to the possible moves now :D
-            game_state.possible_moves = Some(PossibleMoves {
-                from_tile: max_move.from_tile,
-                to: HashSet::from([ChessMove::new(max_move.from_tile, max_move.to_tile, 0)]),
-            });
 
             game_state.execute_move(
                 &mut commands,
                 ass_name,
-                (from_row, from_col),
-                max_move.to_tile,
+                &max_move,
                 &mut piece_query,
             );
         }
@@ -151,16 +138,13 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
         }
     }
 
-    let mut max_move: Option<MaxMove> = None;
-
+    let mut max_move: Option<ChessMove> = None;
 
     for chess_move in maxplayer_moves {
         let mut board_copy = board.clone();
         // board_copy[chess_move.to_tile] = board_copy[chess_move.from_tile].take();
 
-
-        board_copy.update(&chess_move,&player);
-
+        board_copy.update(&chess_move, &player);
 
         let mmin_val = mmin(
             player.other_player(),
@@ -169,13 +153,11 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
             max_value,
             beta,
         );
+
         if mmin_val > max_value {
             max_value = mmin_val;
             if depth == MAX_DEPTH {
-                max_move = Some(MaxMove {
-                    from_tile: chess_move.from_tile,
-                    to_tile: chess_move.to_tile,
-                })
+                max_move = Some(chess_move.clone());
             }
 
             if max_value >= beta {
@@ -186,7 +168,6 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
             }
         }
     }
-
 
     MinMaxData {
         value: max_value,
@@ -212,8 +193,8 @@ pub fn mmin(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
 
     for chess_move in minplayer_moves {
         let mut board_copy = board.clone();
-        
-        board_copy.update(&chess_move,&player);
+
+        board_copy.update(&chess_move, &player);
 
         let mmax_val = mmax(
             player.other_player(),

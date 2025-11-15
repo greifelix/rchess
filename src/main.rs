@@ -89,35 +89,38 @@ fn figure_picking(
     for click in click_events.read().take(1) {
         if let Ok((_tile_ent, tile_name, tile_mat)) = tile_query.get(click.target) {
             reset_tile_highlights(&mut materials, &tile_query);
-            let (clicked_row, clicked_col) = utils::tile_to_indices(tile_name.as_str());
+            let clicked_tile = utils::tile_to_indices(tile_name.as_str());
 
             // Case 1: We previously picked a valid figure and are about to move the figure now
-            if let Some((picked_pigure, from_row, from_col)) = game_state.chosen_figure {
-                game_state.execute_move(
-                    &mut commands,
-                    picked_pigure.ass_name,
-                    (from_row, from_col),
-                    (clicked_row, clicked_col),
-                    &mut piece_query,
-                );
+            if let Some((picked_pigure, from_row,from_col)) = game_state.chosen_figure {
+                if let Some(chess_move) = game_state.pick_is_valid((from_row,from_col),clicked_tile) {
+                    game_state.execute_move(
+                        &mut commands,
+                        picked_pigure.ass_name,
+                        &chess_move,
+                        &mut piece_query,
+                    );
+                }
+        game_state.chosen_figure = None;
+        game_state.possible_moves = None;
+        game_state.move_number += 1;
             }
             // Case 2: We did not yet pick a valid figure and will pick the figure to be moved now
             else {
-                if let Some(fig) = game_state.board.get_fig_on_tile(clicked_row, clicked_col)
+                if let Some(fig) = game_state.board[clicked_tile]
                     && fig.player_color == game_state.player_turn
                 {
-                    game_state.chosen_figure = Some((fig, clicked_row, clicked_col));
+                    game_state.chosen_figure = Some((fig, clicked_tile.0,clicked_tile.1));
                 } else {
                     return;
                 }
 
-                let movelist = MoveBuilder::new((clicked_row, clicked_col), &game_state.board)
+                let movelist = MoveBuilder::new(clicked_tile, &game_state.board)
                     .calculate_naive_moves(&game_state.board)
                     ._filter_brute_force_2(&game_state.board)
-                    .extract();
+                    .moveset;
 
                 let move_list_str: Vec<String> = movelist
-                    .to
                     .iter()
                     .map(|cm| {
                         let (r, c) = cm.to_tile;

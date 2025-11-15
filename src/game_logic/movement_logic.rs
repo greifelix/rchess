@@ -3,14 +3,14 @@ use bevy_egui::egui::menu::bar;
 use rayon::prelude::*;
 use utils::rate_standard_move;
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub enum MoveType {
     Norm,
-    RochadeLeft, // Long
+    RochadeLeft,  // Long
     RochadeRight, // Short
     Passing,
 }
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct ChessMove {
     pub from_tile: (u8, u8),
     pub to_tile: (u8, u8),
@@ -92,14 +92,12 @@ impl MoveBuilder {
                         MoveBuilder::new(p, board)
                             .calculate_naive_moves(board)
                             ._filter_brute_force_2(board)
-                        // .extract()
                     } else {
                         // Accelerate a little by using only some
                         MoveBuilder::new(p, board)
                             .calculate_naive_moves(board)
                             .filter_not_in_set(&stopper_tiles)
                             ._filter_brute_force_2(board)
-                        // .extract()
                     }
                 })
                 .flat_map(|x| x.moveset.into_iter())
@@ -125,21 +123,16 @@ impl MoveBuilder {
                                     // Do extra function on naive-moves to check for each move whether orientation remains the same and filter other
                                     naive_moves
                                         ._filter_postion_changes_to_king(&king_pos, *guard_dir)
-                                    // .extract()
                                 }
                                 // 1.2 Figure behind is not a threat or does not exist
-                                _ => naive_moves, //.extract()
+                                _ => naive_moves,
                             }
                         }
                         // 2. We got the king here, we filter carefully all moves. (For now)
-                        None if p == king_pos => {
-                            // naive_moves.filter_brute_force(board).extract()
-                            naive_moves._filter_brute_force_2(board)
-                            // .extract()
-                        }
+                        None if p == king_pos => naive_moves._filter_brute_force_2(board),
 
                         // 3. fig not in guards, we can move without care
-                        None => naive_moves, // .extract()
+                        None => naive_moves,
                     }
                 })
                 .flat_map(|x| x.moveset.into_iter())
@@ -182,33 +175,6 @@ impl MoveBuilder {
         }
 
         self
-    }
-
-    // pub fn filter_brute_force(mut self, board: &Board) -> Self {
-    //     self.moveset.retain(|&(to_row, to_col)| {
-    //         let mut board_clone = board.clone();
-    //         board_clone[to_row][to_col] = board_clone[self.fig_pos.0][self.fig_pos.1].take();
-    //         let king_pos = board_clone.get_king_position(self.fig_color);
-    //         !board_clone
-    //             .get_busy_tiles(self.fig_color.other_player())
-    //             .into_iter()
-    //             .any(|(r, c)| {
-    //                 MoveBuilder::new((r, c), &board_clone)
-    //                     .calculate_naive_moves(&board_clone)
-    //                     .extract()
-    //                     .to
-    //                     .contains(&king_pos)
-    //             })
-    //     });
-
-    //     self
-    // }
-
-    pub fn extract(self) -> PossibleMoves {
-        PossibleMoves {
-            from_tile: self.fig_pos,
-            to: self.moveset,
-        }
     }
 }
 

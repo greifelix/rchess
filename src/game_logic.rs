@@ -300,8 +300,7 @@ impl IndexMut<(u8, u8)> for Board {
 
 impl Board {
     /// Updates the board according to the chess move in-place!
-    pub fn update(&mut self, chess_move: &ChessMove,color:&PlayerColor) {
-
+    pub fn update(&mut self, chess_move: &ChessMove, color: &PlayerColor) {
         match color {
             PlayerColor::White => self.1._update_tracker(&chess_move.from_tile),
             PlayerColor::Black => self.2._update_tracker(&chess_move.from_tile),
@@ -340,10 +339,6 @@ impl Board {
                 None => false,
             })
             .expect("There will always be a king, so this should never panic.")
-    }
-    // TODO: Delete this and replace by proper index method :D
-    pub fn get_fig_on_tile(&self, row: u8, col: u8) -> Option<Figure> {
-        self[(row, col)]
     }
 
     pub fn get_busy_tiles(&self, player_color: PlayerColor) -> HashSet<(u8, u8)> {
@@ -450,8 +445,7 @@ impl Board {
                         || match fig_type {
                             FigType::Pawn => movement_logic::MoveBuilder::new((r, c), &self)
                                 .calculate_naive_moves(&self)
-                                .extract()
-                                .to
+                                .moveset
                                 .iter()
                                 .any(|x| x.to_tile == my_king_pos),
                             // .contains(&my_king_pos),
@@ -518,7 +512,7 @@ pub struct GameState {
     pub board: Board,
     pub player_turn: PlayerColor,
     pub chosen_figure: Option<(Figure, u8, u8)>,
-    pub possible_moves: Option<PossibleMoves>,
+    pub possible_moves: Option<HashSet<ChessMove>>,
     pub move_number: usize,
 }
 
@@ -537,38 +531,36 @@ impl GameState {
         }
     }
 
-    /// Executes the chosen move, if it is valid. In case the move is invalid, nothing will happen.
+    /// Executes the chosen move.
     /// Also handles the asset moving stuff.
     pub fn execute_move(
         &mut self,
         commands: &mut Commands,
         to_be_moved: &str,
-        from_tile: (u8, u8),
-        to_tile: (u8, u8),
+        chess_move: &ChessMove,
         query: &mut Query<(Entity, &Name, &mut Transform)>,
     ) {
-        if self.move_is_valid(from_tile, to_tile) {
-            move_asset(to_be_moved, query, to_tile);
-
-            if let Some(target) = self.board[to_tile].take() {
-                self.despawn_target(commands, target.ass_name, query);
-            }
-            self.board[to_tile] = self.board[from_tile].take();
-            self.player_turn = self.player_turn.other_player();
+        move_asset(to_be_moved, query, chess_move);
+        // ToDo: This may need an update for on passant?
+        if let Some(target) = self.board[chess_move.to_tile].take() {
+            self.despawn_target(commands, target.ass_name, query);
         }
-        self.chosen_figure = None;
-        self.possible_moves = None;
+        self.board.update(chess_move, &self.player_turn);
+        self.player_turn = self.player_turn.other_player();
         self.move_number += 1;
     }
 
-    // Checks if one of the picked moves of the PLAYER is valid
-    pub fn move_is_valid(&self, from_tile: (u8, u8), to_tile: (u8, u8)) -> bool {
-        if let Some(moves) = &self.possible_moves {
-            from_tile == moves.from_tile && moves.to.iter().any(|x| x.to_tile == to_tile)
-        } else {
-            false
-        }
+    // Checks if the picked tiles are valid and
+    pub fn pick_is_valid(&self, from_tile: (u8, u8), to_tile: (u8, u8)) -> Option<ChessMove> {
+        self.possible_moves.as_ref()?.iter().find_map(|cm| {
+            if cm.from_tile == from_tile && cm.to_tile == to_tile {
+                Some(cm.clone())
+            } else {
+                None
+            }
+        })
     }
+
 
     pub fn new() -> Self {
         let white_pieces = [
@@ -773,9 +765,9 @@ impl GameState {
 fn move_asset(
     asset_name: &str,
     query: &mut Query<'_, '_, (Entity, &Name, &mut Transform)>,
-    to_tile: (u8, u8),
+    chess_move: &ChessMove,
 ) {
-    let (to_row, to_col) = to_tile;
+    let (to_row, to_col) = chess_move.to_tile;
     query
         .iter_mut()
         .filter(|(_ent, name, _t)| name.as_str() == asset_name)
