@@ -15,8 +15,6 @@ use std::collections::{HashMap, HashSet};
 //         .add_systems(Update, (spawn_minmax_task, retrieve_and_exec_minmax_result));
 // }
 
-
-
 #[derive(Clone)]
 pub struct MinMaxData {
     value: i16,
@@ -86,7 +84,7 @@ pub fn spawn_minmax_task(game_state: Res<GameState>, mut minmax_moves: ResMut<Ge
 
         let board = game_state.board.clone();
         let task = task_pool.spawn(async move {
-            let found_move = mmax(MAXIMIZER, MAX_DEPTH, board, -1000, 1000);
+            let found_move = mmax(MAXIMIZER, MAX_DEPTH, &board, -1000, 1000);
             found_move.max_move
         });
 
@@ -109,32 +107,24 @@ pub fn retrieve_and_exec_minmax_result(
             println!("Also we found a move, nice!  - Lets try to execute it!");
 
             let (from_row, from_col) = max_move.from_tile;
-            let ass_name = game_state
-                .board[(from_row, from_col)]
-                .unwrap()
-                .ass_name;
+            let ass_name = game_state.board[(from_row, from_col)].unwrap().ass_name;
 
-            game_state.execute_move(
-                &mut commands,
-                ass_name,
-                &max_move,
-                &mut piece_query,
-            );
+            game_state.execute_move(&mut commands, ass_name, &max_move, &mut piece_query);
         }
     }
 }
 
-pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16) -> MinMaxData {
-    let mut maxplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(&board, player);
-    maxplayer_moves.sort_unstable_by(|a, b| b.rating.cmp(&a.rating));
+pub fn mmax(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16) -> MinMaxData {
+    let maxplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(board, player);
+
     let num_moves_left = maxplayer_moves.len();
     let mut max_value = alpha;
 
     if depth == 0 || num_moves_left == 0 {
         if num_moves_left > 0 {
-            return MinMaxData::new_val(evaluate_board(&board, &MAXIMIZER));
+            return MinMaxData::new_val(evaluate_board(board, &MAXIMIZER));
         } else {
-            return MinMaxData::new_val(evaluate_board(&board, &MAXIMIZER) + max_value);
+            return MinMaxData::new_val(evaluate_board(board, &MAXIMIZER) + max_value);
         }
     }
 
@@ -142,14 +132,13 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
 
     for chess_move in maxplayer_moves {
         let mut board_copy = board.clone();
-        // board_copy[chess_move.to_tile] = board_copy[chess_move.from_tile].take();
 
         board_copy.update(&chess_move, &player);
 
         let mmin_val = mmin(
             player.other_player(),
             depth - 1,
-            board_copy,
+            &board_copy,
             max_value,
             beta,
         );
@@ -175,19 +164,16 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
     }
 }
 
-pub fn mmin(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16) -> i16 {
-    let mut minplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(&board, player);
-
-    minplayer_moves.sort_unstable_by(|a, b| b.rating.cmp(&a.rating));
-
+pub fn mmin(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16) -> i16 {
+    let minplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(board, player);
     let num_moves_left = minplayer_moves.len();
 
     let mut min_value = beta;
     if depth == 0 || num_moves_left == 0 {
         if num_moves_left > 0 {
-            return evaluate_board(&board, &MAXIMIZER);
+            return evaluate_board(board, &MAXIMIZER);
         } else {
-            return evaluate_board(&board, &MAXIMIZER) + min_value;
+            return evaluate_board(board, &MAXIMIZER) + min_value;
         }
     }
 
@@ -199,7 +185,7 @@ pub fn mmin(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
         let mmax_val = mmax(
             player.other_player(),
             depth - 1,
-            board_copy,
+            &board_copy,
             alpha,
             min_value,
         )

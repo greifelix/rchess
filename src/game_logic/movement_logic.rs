@@ -72,6 +72,7 @@ impl MoveBuilder {
         self
     }
 
+    /// Calculate all moves and perform move ordering of the moves.
     pub fn calculate_all_smarter(board: &Board, player_color: PlayerColor) -> Vec<ChessMove> {
         let king_pos = board.get_king_position(player_color);
         if let Some((threat_r, threat_c, threat_type)) = board.player_in_check(player_color) {
@@ -101,13 +102,13 @@ impl MoveBuilder {
                     }
                 })
                 .flat_map(|x| x.moveset.into_iter())
+                .sorted_unstable_by(|a, b| b.rating.cmp(&a.rating))
                 .collect()
         } else {
             let guarding_figures = board.guarding_figures(player_color, king_pos);
             board
                 .get_busy_tiles(player_color)
                 .into_iter()
-                // .into_par_iter()
                 .map(|p| {
                     let naive_moves = MoveBuilder::new(p, board).calculate_naive_moves(board);
                     match guarding_figures.get(&p) {
@@ -136,6 +137,7 @@ impl MoveBuilder {
                     }
                 })
                 .flat_map(|x| x.moveset.into_iter())
+                .sorted_unstable_by(|a, b| b.rating.cmp(&a.rating))
                 .collect()
         }
     }
