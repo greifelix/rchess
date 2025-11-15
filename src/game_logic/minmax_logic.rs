@@ -36,7 +36,7 @@ impl MinMaxData {
     }
 }
 
-const MAX_DEPTH: u8 = 8;
+const MAX_DEPTH: u8 = 6;
 const MAXIMIZER: PlayerColor = PlayerColor::Black;
 
 /// This is just used as means to save the generated moves over time
@@ -153,13 +153,14 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
 
     let mut max_move: Option<MaxMove> = None;
 
-    // for moves_one_figure in maxplayer_moves {
-    //     let (from_row, from_col) = moves_one_figure.from_tile;
-    //     for (to_row, to_col) in moves_one_figure.to {
 
-    for cm in maxplayer_moves {
+    for chess_move in maxplayer_moves {
         let mut board_copy = board.clone();
-        board_copy[cm.to_tile] = board_copy[cm.from_tile].take();
+        // board_copy[chess_move.to_tile] = board_copy[chess_move.from_tile].take();
+
+
+        board_copy.update(&chess_move,&player);
+
 
         let mmin_val = mmin(
             player.other_player(),
@@ -172,8 +173,8 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
             max_value = mmin_val;
             if depth == MAX_DEPTH {
                 max_move = Some(MaxMove {
-                    from_tile: cm.from_tile,
-                    to_tile: cm.to_tile,
+                    from_tile: chess_move.from_tile,
+                    to_tile: chess_move.to_tile,
                 })
             }
 
@@ -185,8 +186,7 @@ pub fn mmax(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
             }
         }
     }
-    // }
-    // }
+
 
     MinMaxData {
         value: max_value,
@@ -209,12 +209,11 @@ pub fn mmin(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
             return evaluate_board(&board, &MAXIMIZER) + min_value;
         }
     }
-    // for moves_one_figure in minplayer_moves {
-    //     let (from_row, from_col) = moves_one_figure.from_tile;
-    //     for (to_row, to_col) in moves_one_figure.to {
-    for cm in minplayer_moves {
+
+    for chess_move in minplayer_moves {
         let mut board_copy = board.clone();
-        board_copy[cm.to_tile] = board_copy[cm.from_tile].take();
+        
+        board_copy.update(&chess_move,&player);
 
         let mmax_val = mmax(
             player.other_player(),
@@ -232,7 +231,6 @@ pub fn mmin(player: PlayerColor, depth: u8, board: Board, alpha: i16, beta: i16)
             return min_value;
         }
     }
-    //     }
-    // }
+
     min_value
 }

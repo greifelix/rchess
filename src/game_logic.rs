@@ -30,7 +30,7 @@ const BLACK_ROOK_L: Option<Figure> = Some(Figure {
     player_color: PlayerColor::Black,
 });
 
-use crate::game_logic::movement_logic::ChessMove;
+use crate::game_logic::movement_logic::{ChessMove, MoveType};
 use crate::{
     game_logic::movement_logic::MoveBuilder,
     utils::{self, idx_to_coordinates, king_prox},
@@ -98,10 +98,7 @@ pub enum Direction {
 }
 
 impl Direction {
-    pub fn determine_direction_from_to(
-        source_pos: (u8, u8),
-        target_pos: (u8, u8),
-    ) -> Self {
+    pub fn determine_direction_from_to(source_pos: (u8, u8), target_pos: (u8, u8)) -> Self {
         match (
             target_pos.0.cmp(&source_pos.0),
             target_pos.1.cmp(&source_pos.1),
@@ -172,6 +169,7 @@ impl RochadeTracker {
         };
 
         match dir {
+            // Left==Long Rochade
             Direction::L => {
                 !self.king_moved
                     && !self.left_rook_moved
@@ -181,6 +179,7 @@ impl RochadeTracker {
                         == left_rook
                     && self._rochade_path_guarded(board.clone(), dir) // Check ob wir auf dem Weg und im Ziel jemals im Shach wären
             }
+            // Right == Short Rochade
             Direction::R => {
                 self.king_moved
                     || self.right_rook_moved
@@ -190,7 +189,7 @@ impl RochadeTracker {
                             == right_rook
                         && self._rochade_path_guarded(board.clone(), dir)
             }
-            _ => panic!("Rochade in unexpected panic!"), // Macht halt keinen Sinn
+            _ => panic!("Rochade only possible left and right!"), // Macht halt keinen Sinn
         }
     }
 
@@ -200,52 +199,52 @@ impl RochadeTracker {
             (PlayerColor::White, Direction::L) => {
                 board.player_in_check(self.player).is_none()
                     && {
-                        board[(WHITE_KING_SP.0,WHITE_KING_SP.1 - 1)] =
-                            board[(WHITE_KING_SP.0,WHITE_KING_SP.1)].take();
+                        board[(WHITE_KING_SP.0, WHITE_KING_SP.1 - 1)] =
+                            board[(WHITE_KING_SP.0, WHITE_KING_SP.1)].take();
                         board.player_in_check(self.player).is_none()
                     }
                     && {
-                        board[(WHITE_KING_SP.0,WHITE_KING_SP.1 - 2)] =
-                            board[(WHITE_KING_SP.0,WHITE_KING_SP.1 - 1)].take();
+                        board[(WHITE_KING_SP.0, WHITE_KING_SP.1 - 2)] =
+                            board[(WHITE_KING_SP.0, WHITE_KING_SP.1 - 1)].take();
                         board.player_in_check(self.player).is_none()
                     }
             }
             (PlayerColor::White, Direction::R) => {
                 board.player_in_check(self.player).is_none()
                     && {
-                        board[(WHITE_KING_SP.0,WHITE_KING_SP.1 + 1)] =
-                            board[(WHITE_KING_SP.0,WHITE_KING_SP.1)].take();
+                        board[(WHITE_KING_SP.0, WHITE_KING_SP.1 + 1)] =
+                            board[(WHITE_KING_SP.0, WHITE_KING_SP.1)].take();
                         board.player_in_check(self.player).is_none()
                     }
                     && {
-                        board[(WHITE_KING_SP.0,WHITE_KING_SP.1 + 2)] =
-                            board[(WHITE_KING_SP.0,WHITE_KING_SP.1 + 1)].take();
+                        board[(WHITE_KING_SP.0, WHITE_KING_SP.1 + 2)] =
+                            board[(WHITE_KING_SP.0, WHITE_KING_SP.1 + 1)].take();
                         board.player_in_check(self.player).is_none()
                     }
             }
             (PlayerColor::Black, Direction::L) => {
                 board.player_in_check(self.player).is_none()
                     && {
-                        board[(BLACK_KING_SP.0,BLACK_KING_SP.1 + 1)] =
-                            board[(BLACK_KING_SP.0,BLACK_KING_SP.1)].take();
+                        board[(BLACK_KING_SP.0, BLACK_KING_SP.1 + 1)] =
+                            board[(BLACK_KING_SP.0, BLACK_KING_SP.1)].take();
                         board.player_in_check(self.player).is_none()
                     }
                     && {
-                        board[(BLACK_KING_SP.0,BLACK_KING_SP.1 + 2)] =
-                            board[(BLACK_KING_SP.0,BLACK_KING_SP.1 + 1)].take();
+                        board[(BLACK_KING_SP.0, BLACK_KING_SP.1 + 2)] =
+                            board[(BLACK_KING_SP.0, BLACK_KING_SP.1 + 1)].take();
                         board.player_in_check(self.player).is_none()
                     }
             }
             (PlayerColor::Black, Direction::R) => {
                 board.player_in_check(self.player).is_none()
                     && {
-                        board[(BLACK_KING_SP.0,BLACK_KING_SP.1 - 1)] =
-                            board[(BLACK_KING_SP.0,BLACK_KING_SP.1)].take();
+                        board[(BLACK_KING_SP.0, BLACK_KING_SP.1 - 1)] =
+                            board[(BLACK_KING_SP.0, BLACK_KING_SP.1)].take();
                         board.player_in_check(self.player).is_none()
                     }
                     && {
-                        board[(BLACK_KING_SP.0,BLACK_KING_SP.1 - 2)] =
-                            board[(BLACK_KING_SP.0,BLACK_KING_SP.1 - 1)].take();
+                        board[(BLACK_KING_SP.0, BLACK_KING_SP.1 - 2)] =
+                            board[(BLACK_KING_SP.0, BLACK_KING_SP.1 - 1)].take();
                         board.player_in_check(self.player).is_none()
                     }
             }
@@ -253,26 +252,28 @@ impl RochadeTracker {
         }
     }
 
-    pub fn update_tracker(&mut self, moved: (u8, u8)) {
+    // Updates rochade tracker.
+    pub fn _update_tracker(&mut self, moved: &(u8, u8)) {
         if self.king_moved || self.right_rook_moved || self.left_rook_moved {
             return;
         } else {
+            // To check for tiles is ok, as we are only interestet in the last move anyway
             match self.player {
                 PlayerColor::Black => {
-                    if moved == BLACK_KING_SP {
+                    if *moved == BLACK_KING_SP {
                         self.king_moved = true;
-                    } else if moved == (7, 0) {
+                    } else if *moved == (7, 0) {
                         self.right_rook_moved = true;
-                    } else if moved == (7, 7) {
+                    } else if *moved == (7, 7) {
                         self.left_rook_moved = true;
                     }
                 }
                 PlayerColor::White => {
-                    if moved == WHITE_KING_SP {
+                    if *moved == WHITE_KING_SP {
                         self.king_moved = true;
-                    } else if moved == (0, 7) {
+                    } else if *moved == (0, 7) {
                         self.right_rook_moved = true;
-                    } else if moved == (0, 0) {
+                    } else if *moved == (0, 0) {
                         self.left_rook_moved = true;
                     }
                 }
@@ -282,27 +283,56 @@ impl RochadeTracker {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct Board(
-    [[Option<Figure>; 8]; 8],
-    RochadeTracker,
-    RochadeTracker,
-);
+pub struct Board([[Option<Figure>; 8]; 8], RochadeTracker, RochadeTracker);
 
-impl Index<(u8,u8)> for Board {
+impl Index<(u8, u8)> for Board {
     type Output = Option<Figure>;
-    fn index(&self, index: (u8,u8)) -> &Self::Output {
+    fn index(&self, index: (u8, u8)) -> &Self::Output {
         &self.0[index.0 as usize][index.1 as usize]
     }
 }
 
-impl IndexMut<(u8,u8)> for Board {
-    fn index_mut(&mut self, index: (u8,u8)) -> &mut Self::Output {
-         &mut self.0[index.0 as usize][index.1 as usize]
+impl IndexMut<(u8, u8)> for Board {
+    fn index_mut(&mut self, index: (u8, u8)) -> &mut Self::Output {
+        &mut self.0[index.0 as usize][index.1 as usize]
     }
 }
 
-
 impl Board {
+    /// Updates the board according to the chess move in-place!
+    pub fn update(&mut self, chess_move: &ChessMove,color:&PlayerColor) {
+
+        match color {
+            PlayerColor::White => self.1._update_tracker(&chess_move.from_tile),
+            PlayerColor::Black => self.2._update_tracker(&chess_move.from_tile),
+        };
+
+        match chess_move.move_type {
+            MoveType::Norm => {
+                self[chess_move.to_tile] = self[chess_move.from_tile].take();
+            }
+            MoveType::Passing => {
+                panic!("Not implemented error");
+            }
+            MoveType::RochadeLeft => {
+                self[chess_move.to_tile] = self[chess_move.from_tile].take();
+                if chess_move.from_tile == WHITE_KING_SP {
+                    self[(0, 2)] = self[(0, 0)].take()
+                } else {
+                    self[(7, 2)] = self[(7, 0)].take()
+                }
+            }
+            MoveType::RochadeRight => {
+                self[chess_move.to_tile] = self[chess_move.from_tile].take();
+                if chess_move.from_tile == WHITE_KING_SP {
+                    self[(0, 5)] = self[(0, 7)].take()
+                } else {
+                    self[(7, 5)] = self[(7, 7)].take()
+                }
+            }
+        };
+    }
+
     pub fn get_king_position(&self, fig_color: PlayerColor) -> (u8, u8) {
         iproduct!(0..8, 0..8)
             .find(|p| match self[*p] {
@@ -313,7 +343,7 @@ impl Board {
     }
     // TODO: Delete this and replace by proper index method :D
     pub fn get_fig_on_tile(&self, row: u8, col: u8) -> Option<Figure> {
-        self[(row,col)]
+        self[(row, col)]
     }
 
     pub fn get_busy_tiles(&self, player_color: PlayerColor) -> HashSet<(u8, u8)> {
@@ -422,8 +452,9 @@ impl Board {
                                 .calculate_naive_moves(&self)
                                 .extract()
                                 .to
-                                .iter().any(|x|x.to_tile==my_king_pos),
-                                // .contains(&my_king_pos),
+                                .iter()
+                                .any(|x| x.to_tile == my_king_pos),
+                            // .contains(&my_king_pos),
                             _ => false,
                         }
                     {
@@ -478,7 +509,7 @@ impl Board {
         bounds: (u8, u8),
     ) -> Option<(Figure, u8, u8)> {
         self.get_tiles_in_direction(source_pos, direction, bounds)
-            .find_map(|(r, c)| self[(r,c)].map(|f| (f, r, c)))
+            .find_map(|(r, c)| self[(r, c)].map(|f| (f, r, c)))
     }
 }
 
@@ -506,7 +537,8 @@ impl GameState {
         }
     }
 
-    /// Executes the chosen move, if it is valid. In case the move is invalid, nothing will happen
+    /// Executes the chosen move, if it is valid. In case the move is invalid, nothing will happen.
+    /// Also handles the asset moving stuff.
     pub fn execute_move(
         &mut self,
         commands: &mut Commands,
@@ -516,7 +548,6 @@ impl GameState {
         query: &mut Query<(Entity, &Name, &mut Transform)>,
     ) {
         if self.move_is_valid(from_tile, to_tile) {
-
             move_asset(to_be_moved, query, to_tile);
 
             if let Some(target) = self.board[to_tile].take() {
@@ -533,7 +564,7 @@ impl GameState {
     // Checks if one of the picked moves of the PLAYER is valid
     pub fn move_is_valid(&self, from_tile: (u8, u8), to_tile: (u8, u8)) -> bool {
         if let Some(moves) = &self.possible_moves {
-            from_tile == moves.from_tile && moves.to.iter().any(|x|x.to_tile==to_tile)
+            from_tile == moves.from_tile && moves.to.iter().any(|x| x.to_tile == to_tile)
         } else {
             false
         }

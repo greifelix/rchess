@@ -6,7 +6,8 @@ use utils::rate_standard_move;
 #[derive(PartialEq, Eq, Hash)]
 pub enum MoveType {
     Norm,
-    Rochade,
+    RochadeLeft, // Long
+    RochadeRight, // Short
     Passing,
 }
 #[derive(PartialEq, Eq, Hash)]
