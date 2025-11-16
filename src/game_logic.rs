@@ -196,8 +196,8 @@ impl RochadeTracker {
                     }
             }
             Direction::R => {
-                !utils::figs_adjacent((k_start.0, k_start.1 - 1), other_king)
-                    && !utils::figs_adjacent((k_start.0, k_start.1 - 2), other_king)
+                !utils::figs_adjacent((k_start.0, k_start.1 + 1), other_king)
+                    && !utils::figs_adjacent((k_start.0, k_start.1 + 2), other_king)
                     && board.player_in_check(self.player).is_none()
                     && {
                         board[(k_start.0, k_start.1 + 1)] = board[k_start].take();
