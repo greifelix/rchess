@@ -17,3 +17,5 @@ The asset itself I got from blenderkit, under the RF license:
 ```md
 This license protects the work in the way that it allows commercial use without mentioning the author, but doesn't allow for re-sale of the asset in the same form (eg. a 3D model sold as a 3D model or part of assetpack or game level on a marketplace).
 ```
+
+I just backed some textures so I could use them with the gltf format.
