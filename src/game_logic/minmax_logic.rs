@@ -1,3 +1,5 @@
+use std::i16;
+
 use bevy::{
     prelude::*,
     tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future},
@@ -67,7 +69,7 @@ pub fn evaluate_board(board: &Board, maximizer: &PlayerColor) -> i16 {
                     score
                 } else {
                     -score
-                }
+                } 
             } else {
                 0
             }
@@ -84,7 +86,7 @@ pub fn spawn_minmax_task(game_state: Res<GameState>, mut minmax_moves: ResMut<Ge
 
         let board = game_state.board.clone();
         let task = task_pool.spawn(async move {
-            let found_move = mmax(MAXIMIZER, MAX_DEPTH, &board, -1000, 1000);
+            let found_move = mmax(MAXIMIZER, MAX_DEPTH, &board, i16::MIN, i16::MAX);
             found_move.max_move
         });
 
@@ -124,7 +126,7 @@ pub fn mmax(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16
         if num_moves_left > 0 {
             return MinMaxData::new_val(evaluate_board(board, &MAXIMIZER));
         } else {
-            return MinMaxData::new_val(evaluate_board(board, &MAXIMIZER) + max_value);
+            return MinMaxData::new_val(i16::MIN);
         }
     }
 
@@ -173,7 +175,7 @@ pub fn mmin(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16
         if num_moves_left > 0 {
             return evaluate_board(board, &MAXIMIZER);
         } else {
-            return evaluate_board(board, &MAXIMIZER) + min_value;
+            return i16::MAX;
         }
     }
 
