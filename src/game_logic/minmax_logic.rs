@@ -4,7 +4,7 @@ use bevy::{
 };
 
 use crate::game_logic::{
-    Board, FigType, GameState, PlayerColor, PossibleMoves,
+    Board, FigType, GameState, PlayerColor,
     movement_logic::{self, ChessMove},
 };
 // use bevy::platform::collections::{HashMap, HashSet};
@@ -115,7 +115,7 @@ pub fn retrieve_and_exec_minmax_result(
 }
 
 pub fn mmax(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16) -> MinMaxData {
-    let maxplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(board, player);
+    let maxplayer_moves = movement_logic::calculate_all_smarter(board, player);
 
     let num_moves_left = maxplayer_moves.len();
     let mut max_value = alpha;
@@ -165,7 +165,7 @@ pub fn mmax(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16
 }
 
 pub fn mmin(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16) -> i16 {
-    let minplayer_moves = movement_logic::MoveBuilder::calculate_all_smarter(board, player);
+    let minplayer_moves = movement_logic::calculate_all_smarter(board, player);
     let num_moves_left = minplayer_moves.len();
 
     let mut min_value = beta;

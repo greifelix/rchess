@@ -1,6 +1,7 @@
 pub mod minmax_logic;
 pub mod movement_logic;
 use bevy::{platform::collections::HashMap, prelude::*};
+use core::panic;
 use itertools::{Itertools, iproduct};
 use std::cmp::Ordering;
 use std::ops::{Index, IndexMut};
@@ -8,27 +9,7 @@ use std::ops::{Index, IndexMut};
 use std::collections::HashSet;
 
 const WHITE_KING_SP: (u8, u8) = (0, 4);
-const BLACK_KING_SP: (u8, u8) = (7, 5);
-const WHITE_ROOK_R: Option<Figure> = Some(Figure {
-    fig_type: FigType::Rook,
-    ass_name: "Rook h1",
-    player_color: PlayerColor::White,
-});
-const WHITE_ROOK_L: Option<Figure> = Some(Figure {
-    fig_type: FigType::Rook,
-    ass_name: "Rook a1",
-    player_color: PlayerColor::White,
-});
-const BLACK_ROOK_R: Option<Figure> = Some(Figure {
-    fig_type: FigType::Rook,
-    ass_name: "Rook a7",
-    player_color: PlayerColor::Black,
-});
-const BLACK_ROOK_L: Option<Figure> = Some(Figure {
-    fig_type: FigType::Rook,
-    ass_name: "Rook h7",
-    player_color: PlayerColor::Black,
-});
+const BLACK_KING_SP: (u8, u8) = (7, 4);
 
 use crate::game_logic::movement_logic::{ChessMove, MoveType};
 use crate::{
@@ -140,10 +121,7 @@ impl Direction {
     }
 }
 
-pub struct PossibleMoves {
-    pub from_tile: (u8, u8),
-    pub to: HashSet<ChessMove>,
-}
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct RochadeTracker {
     player: PlayerColor,
@@ -161,11 +139,14 @@ impl RochadeTracker {
             left_rook_moved: false,
         }
     }
-
+    /// Checks if a rochade is possible in the direction.
+    /// The direction (left, right) is from the perspektive of the white player;
+    /// i.e. the left rochade is also the long one for the black player
     pub fn rochade_possible(&self, board: &Board, dir: Direction) -> bool {
-        let (right_rook, left_rook, king_pos) = match self.player {
-            PlayerColor::Black => (BLACK_ROOK_R, BLACK_ROOK_L, BLACK_KING_SP),
-            PlayerColor::White => (WHITE_ROOK_R, WHITE_ROOK_L, WHITE_KING_SP),
+        let king_pos = if self.player == PlayerColor::White {
+            WHITE_KING_SP
+        } else {
+            BLACK_KING_SP
         };
 
         match dir {
@@ -174,111 +155,89 @@ impl RochadeTracker {
                 !self.king_moved
                     && !self.left_rook_moved
                     && board
-                        .get_first_fig_in_direction(king_pos, Direction::L, (0, 7))
-                        .map(|x| x.0)
-                        == left_rook
-                    && self._rochade_path_guarded(board.clone(), dir) // Check ob wir auf dem Weg und im Ziel jemals im Shach wären
+                        .get_first_fig_in_direction(king_pos, Direction::L, (0, 8))
+                        .map(|x| x.0.fig_type)
+                        == Some(FigType::Rook)
+                    && self._rochade_path_guarded(board, dir) // Check ob wir auf dem Weg und im Ziel jemals im Schachx wären
             }
             // Right == Short Rochade
             Direction::R => {
-                self.king_moved
-                    || self.right_rook_moved
-                        && board
-                            .get_first_fig_in_direction(king_pos, Direction::R, (0, 7))
-                            .map(|x| x.0)
-                            == right_rook
-                        && self._rochade_path_guarded(board.clone(), dir)
+                !self.king_moved
+                    && !self.right_rook_moved
+                    && board
+                        .get_first_fig_in_direction(king_pos, Direction::R, (0, 8))
+                        .map(|x| x.0.fig_type)
+                        == Some(FigType::Rook)
+                    && self._rochade_path_guarded(board, dir)
             }
             _ => panic!("Rochade only possible left and right!"), // Macht halt keinen Sinn
         }
     }
 
-    // Note: We previously checked whether path is figure-free; no check whether it is not bedroht
-    fn _rochade_path_guarded(&self, mut board: Board, dir: Direction) -> bool {
-        match (self.player, dir) {
-            (PlayerColor::White, Direction::L) => {
+    /// This method assumes the rochade path is free. Checks whether the path is not "bedroht" by the other player.
+    fn _rochade_path_guarded(&self, board: &Board, dir: Direction) -> bool {
+        let mut board = board.clone();
+        let k_start = if self.player == PlayerColor::White {
+            WHITE_KING_SP
+        } else {
+            BLACK_KING_SP
+        };
+
+        match dir {
+            Direction::L => {
                 board.player_in_check(self.player).is_none()
                     && {
-                        board[(WHITE_KING_SP.0, WHITE_KING_SP.1 - 1)] =
-                            board[(WHITE_KING_SP.0, WHITE_KING_SP.1)].take();
+                        board[(k_start.0, k_start.1 - 1)] = board[k_start].take();
                         board.player_in_check(self.player).is_none()
                     }
                     && {
-                        board[(WHITE_KING_SP.0, WHITE_KING_SP.1 - 2)] =
-                            board[(WHITE_KING_SP.0, WHITE_KING_SP.1 - 1)].take();
+                        board[(k_start.0, k_start.1 - 2)] =
+                            board[(k_start.0, k_start.1 - 1)].take();
                         board.player_in_check(self.player).is_none()
                     }
             }
-            (PlayerColor::White, Direction::R) => {
+            Direction::R => {
                 board.player_in_check(self.player).is_none()
                     && {
-                        board[(WHITE_KING_SP.0, WHITE_KING_SP.1 + 1)] =
-                            board[(WHITE_KING_SP.0, WHITE_KING_SP.1)].take();
+                        board[(k_start.0, k_start.1 + 1)] = board[k_start].take();
                         board.player_in_check(self.player).is_none()
                     }
                     && {
-                        board[(WHITE_KING_SP.0, WHITE_KING_SP.1 + 2)] =
-                            board[(WHITE_KING_SP.0, WHITE_KING_SP.1 + 1)].take();
+                        board[(k_start.0, k_start.1 + 2)] =
+                            board[(k_start.0, k_start.1 + 1)].take();
                         board.player_in_check(self.player).is_none()
                     }
             }
-            (PlayerColor::Black, Direction::L) => {
-                board.player_in_check(self.player).is_none()
-                    && {
-                        board[(BLACK_KING_SP.0, BLACK_KING_SP.1 + 1)] =
-                            board[(BLACK_KING_SP.0, BLACK_KING_SP.1)].take();
-                        board.player_in_check(self.player).is_none()
-                    }
-                    && {
-                        board[(BLACK_KING_SP.0, BLACK_KING_SP.1 + 2)] =
-                            board[(BLACK_KING_SP.0, BLACK_KING_SP.1 + 1)].take();
-                        board.player_in_check(self.player).is_none()
-                    }
-            }
-            (PlayerColor::Black, Direction::R) => {
-                board.player_in_check(self.player).is_none()
-                    && {
-                        board[(BLACK_KING_SP.0, BLACK_KING_SP.1 - 1)] =
-                            board[(BLACK_KING_SP.0, BLACK_KING_SP.1)].take();
-                        board.player_in_check(self.player).is_none()
-                    }
-                    && {
-                        board[(BLACK_KING_SP.0, BLACK_KING_SP.1 - 2)] =
-                            board[(BLACK_KING_SP.0, BLACK_KING_SP.1 - 1)].take();
-                        board.player_in_check(self.player).is_none()
-                    }
-            }
-            _ => panic!("Rochade guard in unexpected panic!"),
+            _ => panic!("Rochade path called with unexpected direction"),
         }
     }
 
     // Updates rochade tracker.
     pub fn _update_tracker(&mut self, moved: &(u8, u8)) {
-        if self.king_moved || self.right_rook_moved || self.left_rook_moved {
+        if self.king_moved {
             return;
-        } else {
-            // To check for tiles is ok, as we are only interestet in the last move anyway
-            match self.player {
-                PlayerColor::Black => {
-                    if *moved == BLACK_KING_SP {
-                        self.king_moved = true;
-                    } else if *moved == (7, 0) {
-                        self.right_rook_moved = true;
-                    } else if *moved == (7, 7) {
-                        self.left_rook_moved = true;
-                    }
-                }
-                PlayerColor::White => {
-                    if *moved == WHITE_KING_SP {
-                        self.king_moved = true;
-                    } else if *moved == (0, 7) {
-                        self.right_rook_moved = true;
-                    } else if *moved == (0, 0) {
-                        self.left_rook_moved = true;
-                    }
+        }
+        // To check for tiles is ok, as we are only interestet in the last move anyway
+        match self.player {
+            PlayerColor::White => {
+                if *moved == WHITE_KING_SP {
+                    self.king_moved = true;
+                } else if *moved == (0, 0) {
+                    self.left_rook_moved = true;
+                } else if *moved == (0, 7) {
+                    self.right_rook_moved = true;
                 }
             }
-        }
+            PlayerColor::Black => {
+                if *moved == BLACK_KING_SP {
+                    self.king_moved = true;
+                } else if *moved == (7, 0) {
+                    self.left_rook_moved = true;
+                } else if *moved == (7, 7) {
+                    self.right_rook_moved = true;
+                }
+            }
+        };
     }
 }
 
@@ -316,9 +275,9 @@ impl Board {
             MoveType::RochadeLeft => {
                 self[chess_move.to_tile] = self[chess_move.from_tile].take();
                 if chess_move.from_tile == WHITE_KING_SP {
-                    self[(0, 2)] = self[(0, 0)].take()
+                    self[(0, 3)] = self[(0, 0)].take()
                 } else {
-                    self[(7, 2)] = self[(7, 0)].take()
+                    self[(7, 3)] = self[(7, 0)].take()
                 }
             }
             MoveType::RochadeRight => {
@@ -460,8 +419,9 @@ impl Board {
             })
     }
 
-    /// Get tiles in direction, starting from the source position which is exclusive and ending at the bounds of the board
-    /// In friendly mode
+    /// Get tiles in direction starting at source pos (exclusive) in the given direction.
+    /// Lower bound is inclusive, higher bound is exclusive!
+    /// Low bound is used for the left and lower borders, right bound for right and upper!
     pub fn get_tiles_in_direction(
         &self,
         source_pos: (u8, u8),
@@ -496,6 +456,9 @@ impl Board {
             .collect()
     }
 
+    /// Get the first fig starting at source pos (exclusive) in the given direction.
+    /// Lower bound is inclusive, higher bound is exclusive!
+    /// Low bound is used for the left and lower borders, right bound for right and upper!
     pub fn get_first_fig_in_direction(
         &self,
         source_pos: (u8, u8),
@@ -512,7 +475,7 @@ pub struct GameState {
     pub board: Board,
     pub player_turn: PlayerColor,
     pub chosen_figure: Option<(Figure, u8, u8)>,
-    pub possible_moves: Option<HashSet<ChessMove>>,
+    pub possible_moves: Option<Vec<ChessMove>>,
     pub move_number: usize,
 }
 
@@ -560,7 +523,6 @@ impl GameState {
             }
         })
     }
-
 
     pub fn new() -> Self {
         let white_pieces = [
@@ -767,13 +729,31 @@ fn move_asset(
     query: &mut Query<'_, '_, (Entity, &Name, &mut Transform)>,
     chess_move: &ChessMove,
 ) {
-    let (to_row, to_col) = chess_move.to_tile;
+    let mut ass_pos = HashMap::new();
+    ass_pos.insert(asset_name, chess_move.to_tile);
+    match chess_move.move_type {
+        MoveType::RochadeLeft => {
+            if asset_name == "King e1" {
+                ass_pos.insert("Rook a1", (0, 3));
+            } else {
+                ass_pos.insert("Rook a8", (7, 3));
+            };
+        }
+        MoveType::RochadeRight => {
+            if asset_name == "King e1" {
+                ass_pos.insert("Rook h1", (0, 5));
+            } else {
+                ass_pos.insert("Rook h8", (7, 5));
+            };
+        }
+        _ => (),
+    };
     query
         .iter_mut()
-        .filter(|(_ent, name, _t)| name.as_str() == asset_name)
-        .for_each(|(_ent, _name, mut t)| {
-            let (z, x) = idx_to_coordinates(to_row, to_col);
-
+        .filter(|(_ent, name, _t)| ass_pos.contains_key(name.as_str()))
+        .for_each(|(_ent, name, mut t)| {
+            let new_pos = ass_pos[name.as_str()];
+            let (z, x) = idx_to_coordinates(new_pos.0, new_pos.1);
             t.as_mut().translation.x = x;
             t.as_mut().translation.z = z;
         });

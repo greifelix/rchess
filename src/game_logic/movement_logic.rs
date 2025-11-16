@@ -65,81 +65,12 @@ impl MoveBuilder {
         };
         self
     }
-    /// TODO: Achtung: König darf natürlich woanders hin
+
+    /// Still a todo??: Achtung: König darf natürlich woanders hin
     pub fn filter_not_in_set(mut self, filter_set: &HashSet<(u8, u8)>) -> MoveBuilder {
         self.moveset.retain(|mv| filter_set.contains(&mv.to_tile));
 
         self
-    }
-
-    /// Calculate all moves and perform move ordering of the moves.
-    pub fn calculate_all_smarter(board: &Board, player_color: PlayerColor) -> Vec<ChessMove> {
-        let king_pos = board.get_king_position(player_color);
-        if let Some((threat_r, threat_c, threat_type)) = board.player_in_check(player_color) {
-            let dir_to_threat =
-                Direction::determine_direction_from_to(king_pos, (threat_r, threat_c));
-
-            let mut stopper_tiles: HashSet<(u8, u8)> =
-                board.get_tiles_until_block(king_pos, dir_to_threat);
-            // This one is extra for knights as they are not found in direction
-            stopper_tiles.insert((threat_r, threat_c));
-
-            board
-                .get_busy_tiles(player_color)
-                .into_iter()
-                // .into_par_iter()
-                .map(|p| {
-                    if p == king_pos {
-                        MoveBuilder::new(p, board)
-                            .calculate_naive_moves(board)
-                            ._filter_brute_force_2(board)
-                    } else {
-                        // Accelerate a little by using only some
-                        MoveBuilder::new(p, board)
-                            .calculate_naive_moves(board)
-                            .filter_not_in_set(&stopper_tiles)
-                            ._filter_brute_force_2(board)
-                    }
-                })
-                .flat_map(|x| x.moveset.into_iter())
-                .sorted_unstable_by(|a, b| b.rating.cmp(&a.rating))
-                .collect()
-        } else {
-            let guarding_figures = board.guarding_figures(player_color, king_pos);
-            board
-                .get_busy_tiles(player_color)
-                .into_iter()
-                .map(|p| {
-                    let naive_moves = MoveBuilder::new(p, board).calculate_naive_moves(board);
-                    match guarding_figures.get(&p) {
-                        // 1. The chosen tile hosts a guard, check for threats behind our guard.
-                        Some((guard_dir, _guard_type)) => {
-                            match board.get_first_fig_in_direction(p, *guard_dir, (0, 8)) {
-                                // 1.1 There is a directional threat behind our guard
-                                Some((fig_behind, _br, _bc))
-                                    if fig_behind.player_color == player_color.other_player()
-                                        && fig_behind.fig_type.pins_in_direction(*guard_dir) =>
-                                {
-                                    // 1.1.1 Figure behind the to-be-moved figure is a directional threat!
-                                    // Do extra function on naive-moves to check for each move whether orientation remains the same and filter other
-                                    naive_moves
-                                        ._filter_postion_changes_to_king(&king_pos, *guard_dir)
-                                }
-                                // 1.2 Figure behind is not a threat or does not exist
-                                _ => naive_moves,
-                            }
-                        }
-                        // 2. We got the king here, we filter carefully all moves. (For now)
-                        None if p == king_pos => naive_moves._filter_brute_force_2(board),
-
-                        // 3. fig not in guards, we can move without care
-                        None => naive_moves,
-                    }
-                })
-                .flat_map(|x| x.moveset.into_iter())
-                .sorted_unstable_by(|a, b| b.rating.cmp(&a.rating))
-                .collect()
-        }
     }
 
     /// Filters all moves from the moveset with position changes to the king, compared to the start direction
@@ -178,6 +109,109 @@ impl MoveBuilder {
 
         self
     }
+}
+
+/// Calculate all moves and perform move ordering of the moves.
+pub fn calculate_all_smarter(board: &Board, player_color: PlayerColor) -> Vec<ChessMove> {
+    let king_pos = board.get_king_position(player_color);
+    if let Some((threat_r, threat_c, threat_type)) = board.player_in_check(player_color) {
+        let dir_to_threat = Direction::determine_direction_from_to(king_pos, (threat_r, threat_c));
+
+        let mut stopper_tiles: HashSet<(u8, u8)> =
+            board.get_tiles_until_block(king_pos, dir_to_threat);
+        // This one is extra for knights as they are not found in direction
+        stopper_tiles.insert((threat_r, threat_c));
+
+        board
+            .get_busy_tiles(player_color)
+            .into_iter()
+            // .into_par_iter()
+            .map(|p| {
+                if p == king_pos {
+                    MoveBuilder::new(p, board)
+                        .calculate_naive_moves(board)
+                        ._filter_brute_force_2(board)
+                } else {
+                    // Accelerate a little by using only some
+                    MoveBuilder::new(p, board)
+                        .calculate_naive_moves(board)
+                        .filter_not_in_set(&stopper_tiles)
+                        ._filter_brute_force_2(board)
+                }
+            })
+            .flat_map(|x| x.moveset.into_iter())
+            .sorted_unstable_by(|a, b| b.rating.cmp(&a.rating))
+            .collect()
+    } else {
+        let guarding_figures = board.guarding_figures(player_color, king_pos);
+        let mut moves: Vec<ChessMove> = board
+            .get_busy_tiles(player_color)
+            .into_iter()
+            .map(|p| {
+                let naive_moves = MoveBuilder::new(p, board).calculate_naive_moves(board);
+                match guarding_figures.get(&p) {
+                    // 1. The chosen tile hosts a guard, check for threats behind our guard.
+                    Some((guard_dir, _guard_type)) => {
+                        match board.get_first_fig_in_direction(p, *guard_dir, (0, 8)) {
+                            // 1.1 There is a directional threat behind our guard
+                            Some((fig_behind, _br, _bc))
+                                if fig_behind.player_color == player_color.other_player()
+                                    && fig_behind.fig_type.pins_in_direction(*guard_dir) =>
+                            {
+                                // 1.1.1 Figure behind the to-be-moved figure is a directional threat!
+                                // Do extra function on naive-moves to check for each move whether orientation remains the same and filter other
+                                naive_moves._filter_postion_changes_to_king(&king_pos, *guard_dir)
+                            }
+                            // 1.2 Figure behind is not a threat or does not exist
+                            _ => naive_moves,
+                        }
+                    }
+                    // 2. We got the king here, we filter carefully all moves. (For now)
+                    None if p == king_pos => naive_moves._filter_brute_force_2(board),
+
+                    // 3. fig not in guards, we can move without care
+                    None => naive_moves,
+                }
+            })
+            .flat_map(|x| x.moveset.into_iter())
+            .sorted_unstable_by(|a, b| b.rating.cmp(&a.rating))
+            .collect();
+        // Only need to add rochade in case of not-in-check; otherwise it is filtered anyway
+        maybe_add_rochade(&player_color, &mut moves, board);
+        moves
+    }
+}
+
+/// Special case Rochade; Rochade moves get potentially added after we did all the other moves.
+pub fn maybe_add_rochade(player_color: &PlayerColor, moves: &mut Vec<ChessMove>, board: &Board) {
+    let (tracker, k_pos) = match player_color {
+        PlayerColor::White => (&board.1, WHITE_KING_SP),
+        PlayerColor::Black => (&board.2, BLACK_KING_SP),
+    };
+
+    if tracker.rochade_possible(board, Direction::L) {
+        moves.insert(
+            0,
+            ChessMove {
+                from_tile: k_pos,
+                to_tile: (k_pos.0, k_pos.1 - 2),
+                rating: 32,
+                move_type: MoveType::RochadeLeft,
+            },
+        );
+    };
+
+    if tracker.rochade_possible(board, Direction::R) {
+        moves.insert(
+            0,
+            ChessMove {
+                from_tile: k_pos,
+                to_tile: (k_pos.0, k_pos.1 + 2),
+                rating: 32,
+                move_type: MoveType::RochadeRight,
+            },
+        );
+    };
 }
 
 // ++++++++++++++++++ Each individual figure move ++++++++++++++++++
