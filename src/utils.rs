@@ -1,11 +1,6 @@
-use bevy::{
-    math::ops::abs,
-    platform::collections::{HashMap, HashSet},
-    prelude::*,
-};
+use bevy::{platform::collections::HashSet, prelude::*};
 
-use crate::game_logic::{Direction, FigType};
-use std::cmp::Ordering;
+use crate::game_logic::FigType;
 pub fn tile_to_indices(tile_name: &str) -> (u8, u8) {
     let sub_strings: Vec<&str> = tile_name.split_terminator('_').collect();
     (
@@ -21,47 +16,6 @@ pub fn idx_to_coordinates(row: u8, col: u8) -> (f32, f32) {
     let row_offset: f32 = offset + 3.0 * square_size - row as f32 * square_size;
     let col_offset: f32 = -offset - 3.0 * square_size + col as f32 * square_size;
     (row_offset, col_offset)
-}
-
-/// NOTE: We do not check knight positions here
-pub fn king_prox(fig_pos: (u8, u8), king_pos: (u8, u8)) -> Direction {
-    let (king_row, king_col) = king_pos;
-    let (fig_row, fig_col) = fig_pos;
-    match (fig_row.cmp(&king_row), fig_col.cmp(&king_col)) {
-        (Ordering::Equal, Ordering::Greater) => Direction::R,
-        (Ordering::Equal, Ordering::Less) => Direction::L,
-        (Ordering::Greater, Ordering::Equal) => Direction::A,
-        (Ordering::Less, Ordering::Equal) => Direction::B,
-        (Ordering::Greater, Ordering::Greater) => {
-            if fig_row - king_row == fig_col - king_col {
-                Direction::AR
-            } else {
-                Direction::Unrelated
-            }
-        }
-        (Ordering::Less, Ordering::Less) => {
-            if king_row - fig_row == king_col - fig_col {
-                Direction::BL
-            } else {
-                Direction::Unrelated
-            }
-        }
-        (Ordering::Greater, Ordering::Less) => {
-            if fig_row - king_row == king_col - fig_col {
-                Direction::AL
-            } else {
-                Direction::Unrelated
-            }
-        }
-        (Ordering::Less, Ordering::Greater) => {
-            if king_row - fig_row == fig_col - king_col {
-                Direction::BR
-            } else {
-                Direction::Unrelated
-            }
-        }
-        _ => Direction::Unrelated,
-    }
 }
 
 /// Figs are direct neighbots, horizontally, vertically or diagonal
@@ -117,7 +71,7 @@ pub fn rate_standard_move(moving: FigType, taken: Option<FigType>) -> u8 {
     let Some(taken) = taken else {
         return 0;
     };
-    
+
     _moving_val(moving) + _taken_val(taken)
 }
 
@@ -139,8 +93,6 @@ fn _taken_val(taken: FigType) -> u8 {
         FigType::Knight => 3,
         FigType::Rook => 5,
         FigType::Queen => 8,
-        FigType::King => 0 // This should never happen, but in case we use naive moves for filtering invalid moves or something, we dont want to panic, so no panic
-            
-           
+        FigType::King => 0, // This should never happen, but in case we use naive moves for filtering invalid moves or something, we dont want to panic, so no panic
     }
 }

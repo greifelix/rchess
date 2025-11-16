@@ -1,6 +1,6 @@
 use crate::game_logic::*;
 use bevy_egui::egui::menu::bar;
-use rayon::prelude::*;
+
 use utils::rate_standard_move;
 
 #[derive(PartialEq, Eq, Hash, Clone)]

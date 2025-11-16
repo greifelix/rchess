@@ -4,18 +4,14 @@ use bevy::{platform::collections::HashMap, prelude::*};
 use core::panic;
 use itertools::{Itertools, iproduct};
 use std::cmp::Ordering;
-use std::ops::{Index, IndexMut};
-// use bevy::platform::collections::HashSet;
 use std::collections::HashSet;
+use std::ops::{Index, IndexMut};
 
 const WHITE_KING_SP: (u8, u8) = (0, 4);
 const BLACK_KING_SP: (u8, u8) = (7, 4);
 
 use crate::game_logic::movement_logic::{ChessMove, MoveType};
-use crate::{
-    game_logic::movement_logic::MoveBuilder,
-    utils::{self, idx_to_coordinates, king_prox},
-};
+use crate::utils::{self, idx_to_coordinates};
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum FigType {
@@ -120,7 +116,6 @@ impl Direction {
         }
     }
 }
-
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct RochadeTracker {

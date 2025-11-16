@@ -7,8 +7,8 @@ use crate::game_logic::{
     Board, FigType, GameState, PlayerColor,
     movement_logic::{self, ChessMove},
 };
-// use bevy::platform::collections::{HashMap, HashSet};
-use std::collections::{HashMap, HashSet};
+use bevy::platform::collections::HashMap;
+
 
 // pub fn singleplayer_plugin(app: &mut App) {
 //     app.insert_resource(GeneratedMoves::new())

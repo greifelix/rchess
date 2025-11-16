@@ -127,7 +127,6 @@ fn figure_picking(
 
                 // Only add the rochade possibility in case we added the king
                 if game_state.chosen_figure.unwrap().0.fig_type == FigType::King {
-                    
                     movement_logic::maybe_add_rochade(
                         &game_state.player_turn,
                         &mut movelist,
