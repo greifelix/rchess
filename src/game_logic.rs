@@ -153,7 +153,7 @@ impl RochadeTracker {
                         .get_first_fig_in_direction(king_pos, Direction::L, (0, 8))
                         .map(|x| x.0.fig_type)
                         == Some(FigType::Rook)
-                    && self._rochade_path_guarded(board, dir) // Check ob wir auf dem Weg und im Ziel jemals im Schachx wären
+                    && self._rochade_path_guarded(board, dir) // Check ob wir auf dem Weg und im Ziel jemals im Schach wären
             }
             // Right == Short Rochade
             Direction::R => {
@@ -170,6 +170,7 @@ impl RochadeTracker {
     }
 
     /// This method assumes the rochade path is free. Checks whether the path is not "bedroht" by the other player.
+    /// (We check the enemy king extra, cause player_in_check handles only "legal" positions.)
     fn _rochade_path_guarded(&self, board: &Board, dir: Direction) -> bool {
         let mut board = board.clone();
         let k_start = if self.player == PlayerColor::White {
@@ -178,9 +179,12 @@ impl RochadeTracker {
             BLACK_KING_SP
         };
 
+        let other_king = board.get_king_position(self.player.other_player());
         match dir {
             Direction::L => {
-                board.player_in_check(self.player).is_none()
+                !utils::figs_adjacent((k_start.0, k_start.1 - 1), other_king)
+                    && !utils::figs_adjacent((k_start.0, k_start.1 - 2), other_king)
+                    && board.player_in_check(self.player).is_none()
                     && {
                         board[(k_start.0, k_start.1 - 1)] = board[k_start].take();
                         board.player_in_check(self.player).is_none()
@@ -192,7 +196,9 @@ impl RochadeTracker {
                     }
             }
             Direction::R => {
-                board.player_in_check(self.player).is_none()
+                !utils::figs_adjacent((k_start.0, k_start.1 - 1), other_king)
+                    && !utils::figs_adjacent((k_start.0, k_start.1 - 2), other_king)
+                    && board.player_in_check(self.player).is_none()
                     && {
                         board[(k_start.0, k_start.1 + 1)] = board[k_start].take();
                         board.player_in_check(self.player).is_none()
