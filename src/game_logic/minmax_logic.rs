@@ -1,6 +1,7 @@
 use std::i16;
 
 use bevy::{
+    gltf::GltfMesh,
     prelude::*,
     tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future},
 };
@@ -10,7 +11,6 @@ use crate::game_logic::{
     movement_logic::{self, ChessMove},
 };
 use bevy::platform::collections::HashMap;
-
 
 // pub fn singleplayer_plugin(app: &mut App) {
 //     app.insert_resource(GeneratedMoves::new())
@@ -32,7 +32,7 @@ impl MinMaxData {
     }
 }
 
-const MAX_DEPTH: u8 = 6;
+const MAX_DEPTH: u8 = 8;
 const MAXIMIZER: PlayerColor = PlayerColor::Black;
 
 /// This is just used as means to save the generated moves over time
@@ -69,7 +69,7 @@ pub fn evaluate_board(board: &Board, maximizer: &PlayerColor) -> i16 {
                     score
                 } else {
                     -score
-                } 
+                }
             } else {
                 0
             }
@@ -99,6 +99,9 @@ pub fn retrieve_and_exec_minmax_result(
     mut minmax_moves: ResMut<GeneratedMoves>,
     mut game_state: ResMut<GameState>,
     mut piece_query: Query<(Entity, &Name, &mut Transform)>,
+    chess_scene: Res<crate::ChessScene>,
+    gltf_assets: Res<Assets<Gltf>>,
+    gltf_meshes: Res<Assets<GltfMesh>>,
 ) {
     if let Some(t) = minmax_moves.data.get_mut(&game_state.move_number) {
         let status = block_on(future::poll_once(t));
@@ -111,7 +114,15 @@ pub fn retrieve_and_exec_minmax_result(
             let (from_row, from_col) = max_move.from_tile;
             let ass_name = game_state.board[(from_row, from_col)].unwrap().ass_name;
 
-            game_state.execute_move(&mut commands, ass_name, &max_move, &mut piece_query);
+            game_state.execute_move(
+                &mut commands,
+                ass_name,
+                &max_move,
+                &mut piece_query,
+                &chess_scene,
+                &gltf_assets,
+                &gltf_meshes,
+            );
         }
     }
 }

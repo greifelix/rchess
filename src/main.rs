@@ -1,11 +1,11 @@
+use bevy::gltf::{Gltf, GltfExtras, GltfMesh};
 use bevy::prelude::*;
-
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use crate::game_logic::movement_logic::{self, MoveBuilder};
 
-use crate::game_logic::{FigType, minmax_logic};
+use crate::game_logic::{FigType, PlayerColor, minmax_logic};
 
 mod game_logic;
 mod utils;
@@ -18,6 +18,7 @@ fn main() {
         .insert_resource(game_logic::GameState::new())
         .insert_resource(game_logic::minmax_logic::GeneratedMoves::new())
         .add_systems(Startup, (environment_setup, board_setup).chain())
+        
         .add_systems(Update, figure_picking)
         .add_systems(
             Update,
@@ -28,6 +29,9 @@ fn main() {
         )
         .run();
 }
+
+#[derive(Resource)]
+pub struct ChessScene(Handle<Gltf>);
 
 #[derive(Component)]
 struct SurfaceTile;
@@ -50,15 +54,60 @@ fn environment_setup(mut commands: Commands) {
         );
 }
 
+fn queen_spawner(
+    commands: &mut Commands,
+    chess_scene: &Res<ChessScene>,
+    gltf_assets: &Res<Assets<Gltf>>,
+    gltf_meshes: &Res<Assets<GltfMesh>>,
+    color: PlayerColor,
+    queen_name: &str,
+    (row, col): (u8, u8),
+) {
+    // Wait until the scene is loaded
+    let Some(gltf) = gltf_assets.get(&chess_scene.0) else {
+        return;
+    };
+    let (mesh_handle, mat_handle) = if color == PlayerColor::White {
+        (
+            gltf.meshes[30].clone(),
+            gltf.named_materials["white pieces"].clone(),
+        )
+    } else {
+        (
+            gltf.meshes[31].clone(),
+            gltf.named_materials["black pieces"].clone(),
+        )
+    };
+
+    let (row_offset, col_offset) = utils::idx_to_coordinates(row, col);
+    let gltf_mesh = gltf_meshes.get(mesh_handle.id()).unwrap();
+    commands.spawn((
+        Mesh3d(gltf_mesh.primitives[0].mesh.clone()),
+        MeshMaterial3d(mat_handle.clone()),
+        Transform::from_xyz(col_offset, 0.047, row_offset),
+        gltf_mesh.primitives[0]
+            .extras
+            .clone()
+            .unwrap_or(GltfExtras::default()),
+        Name::from(queen_name),
+    ));
+}
+
 fn board_setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("chess_set.glb"));
+    let gltf_handle: Handle<Gltf> = asset_server.load("chess_set.glb");
+    commands.insert_resource(ChessScene(gltf_handle));
 
-    commands.spawn((Transform::from_xyz(0.0, 0.0, 0.0), SceneRoot(scene_handle)));
+    let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("chess_set.glb"));
+    commands.spawn((
+        Transform::from_xyz(0.0, 0.0, 0.0),
+        SceneRoot(scene_handle),
+        Name::new("Original Chess Scene"),
+    ));
 
     let square_size = 0.05;
 
@@ -85,6 +134,9 @@ fn figure_picking(
     tile_query: Query<(Entity, &Name, &MeshMaterial3d<StandardMaterial>), With<SurfaceTile>>,
     mut piece_query: Query<(Entity, &Name, &mut Transform)>,
     mut game_state: ResMut<game_logic::GameState>,
+    chess_scene: Res<crate::ChessScene>,
+    gltf_assets: Res<Assets<Gltf>>,
+    gltf_meshes: Res<Assets<GltfMesh>>,
 ) {
     for click in click_events.read().take(1) {
         if let Ok((_tile_ent, tile_name, tile_mat)) = tile_query.get(click.target) {
@@ -101,7 +153,11 @@ fn figure_picking(
                         picked_pigure.ass_name,
                         &chess_move,
                         &mut piece_query,
+                        &chess_scene,
+                        &gltf_assets,
+                        &gltf_meshes,
                     );
+
                 }
                 game_state.chosen_figure = None;
                 game_state.possible_moves = None;

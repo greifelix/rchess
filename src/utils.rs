@@ -1,6 +1,9 @@
-use bevy::{platform::collections::HashSet, prelude::*};
+use bevy::{
+    platform::collections::{HashMap, HashSet},
+    prelude::*,
+};
 
-use crate::game_logic::FigType;
+use crate::game_logic::{FigType, Figure, PlayerColor};
 pub fn tile_to_indices(tile_name: &str) -> (u8, u8) {
     let sub_strings: Vec<&str> = tile_name.split_terminator('_').collect();
     (
@@ -70,7 +73,6 @@ pub fn rate_promotion() -> u8 {
     16
 }
 
-
 /// Rate standard_move for move ordering
 pub fn rate_standard_move(moving: FigType, taken: Option<FigType>) -> u8 {
     let Some(taken) = taken else {
@@ -99,5 +101,115 @@ fn _taken_val(taken: FigType) -> u8 {
         FigType::Rook => 5,
         FigType::Queen => 8,
         FigType::King => 0, // This should never happen, but in case we use naive moves for filtering invalid moves or something, we dont want to panic, so no panic
+    }
+}
+
+
+pub fn pawn_promotion(pawn_name:&str,player_color:PlayerColor) -> Figure {
+    match player_color {
+        PlayerColor::Black => _black_promotion(pawn_name),
+        PlayerColor::White => _white_promotion(pawn_name)
+    }
+}
+
+/// Workaround which works with static strings
+pub fn _white_promotion(pawn_name: &str) -> Figure {
+match pawn_name {
+            "Pawn a2" =>
+            Figure {
+                fig_type: FigType::Queen,
+                ass_name: "Queen a2",
+                player_color: PlayerColor::White,
+            },
+            "Pawn b2" =>
+            Figure {
+                fig_type: FigType::Queen,
+                ass_name: "Queen b2",
+                player_color: PlayerColor::White,
+            },
+            "Pawn c2" =>
+            Figure {
+                fig_type: FigType::Queen,
+                ass_name: "Queen c2",
+                player_color: PlayerColor::White,
+            },
+            "Pawn d2" =>
+            Figure {
+                fig_type: FigType::Queen,
+                ass_name: "Queen d2",
+                player_color: PlayerColor::White,
+            },
+            "Pawn e2" =>
+            Figure {
+                fig_type: FigType::Queen,
+                ass_name: "Queen e2",
+                player_color: PlayerColor::White,
+            },
+            "Pawn f2" =>
+            Figure {
+                fig_type: FigType::Queen,
+                ass_name: "Queen f2",
+                player_color: PlayerColor::White,
+            },
+            "Pawn g2" =>
+            Figure {
+                fig_type: FigType::Queen,
+                ass_name: "Queen g2",
+                player_color: PlayerColor::White,
+            },
+            "Pawn h2" =>
+            Figure {
+                fig_type: FigType::Queen,
+                ass_name: "Queen h2",
+                player_color: PlayerColor::White,
+            },
+               _ => panic!("Invalid pawn name for promotion!")
+        }
+}
+
+/// Workaround which works with static strings
+pub fn _black_promotion(pawn_name: &str) -> Figure {
+    match pawn_name {
+        "Pawn a7" => Figure {
+            fig_type: FigType::Queen,
+            ass_name: "Queen a7",
+            player_color: PlayerColor::Black,
+        },
+        "Pawn b7" => Figure {
+            fig_type: FigType::Queen,
+            ass_name: "Queen b7",
+            player_color: PlayerColor::Black,
+        },
+        "Pawn c7" => Figure {
+            fig_type: FigType::Queen,
+            ass_name: "Queen c7",
+            player_color: PlayerColor::Black,
+        },
+        "Pawn d7" => Figure {
+            fig_type: FigType::Queen,
+            ass_name: "Queen d7",
+            player_color: PlayerColor::Black,
+        },
+        "Pawn e7" => Figure {
+            fig_type: FigType::Queen,
+            ass_name: "Queen e7",
+            player_color: PlayerColor::Black,
+        },
+        "Pawn f7" => Figure {
+            fig_type: FigType::Queen,
+            ass_name: "Queen f7",
+            player_color: PlayerColor::Black,
+        },
+        "Pawn g7" => Figure {
+            fig_type: FigType::Queen,
+            ass_name: "Queen g7",
+            player_color: PlayerColor::Black,
+        },
+        "Pawn h7" => Figure {
+            fig_type: FigType::Queen,
+            ass_name: "Queen h7",
+            player_color: PlayerColor::Black,
+        },
+        _ => panic!("Invalid pawn name for promotion!")
     }
 }
