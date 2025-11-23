@@ -270,6 +270,7 @@ impl Board {
             MoveType::Norm => {
                 self[chess_move.to_tile] = self[chess_move.from_tile].take();
             }
+            MoveType::Promoting => panic!("Not implemented error!"),
             MoveType::Passing => {
                 panic!("Not implemented error");
             }

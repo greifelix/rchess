@@ -66,6 +66,11 @@ pub fn knights_reach(from_pos: (u8, u8)) -> HashSet<(u8, u8)> {
     cands
 }
 
+pub fn rate_promotion() -> u8 {
+    16
+}
+
+
 /// Rate standard_move for move ordering
 pub fn rate_standard_move(moving: FigType, taken: Option<FigType>) -> u8 {
     let Some(taken) = taken else {

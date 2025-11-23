@@ -9,6 +9,7 @@ pub enum MoveType {
     RochadeLeft,  // Long
     RochadeRight, // Short
     Passing,
+    Promoting,
 }
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct ChessMove {
@@ -20,12 +21,21 @@ pub struct ChessMove {
 
 impl ChessMove {
     /// Creates a new standard chess move
-    pub fn new(from_tile: (u8, u8), to_tile: (u8, u8), rating: u8) -> Self {
+    pub fn norm(from_tile: (u8, u8), to_tile: (u8, u8), rating: u8) -> Self {
         ChessMove {
             from_tile,
             to_tile,
             rating,
             move_type: MoveType::Norm,
+        }
+    }
+
+    pub fn new(from_tile: (u8, u8), to_tile: (u8, u8), rating: u8, move_type: MoveType) -> Self {
+        ChessMove {
+            from_tile,
+            to_tile,
+            rating,
+            move_type,
         }
     }
 }
@@ -221,34 +231,40 @@ pub fn white_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
     // 1. Move one up, if there is no other piece (including piece itself, in case of boundary wrap)
     let (r, c) = ((from_row + 1).min(7), from_col);
     if board[(r, c)].is_none() {
-        // out.insert((r, c));
-
-        out.insert(ChessMove::new(
-            from_tile,
-            (r, c),
-            rate_standard_move(FigType::Pawn, None),
-        ));
+        let (move_type, rating) = if r == 7 {
+            (MoveType::Promoting, utils::rate_promotion())
+        } else {
+            (MoveType::Norm, rate_standard_move(FigType::Pawn, None))
+        };
+        out.insert(ChessMove::new(from_tile, (r, c), rating, move_type));
     }
 
     // 2. Move two up, if there is no other piece in the way, and we start at row 1
     if from_row == 1 && board[(from_row + 1, c)].is_none() && board[(from_row + 2, c)].is_none() {
-        out.insert(ChessMove::new(
+        out.insert(ChessMove::norm(
             from_tile,
             (from_row + 2, from_col),
             rate_standard_move(FigType::Pawn, None),
         ));
     }
-    // 3. Move diagonal right /left, in case there is black piece
+    // 3. Move diagonal right, in case there is black piece
     let (r, c) = ((from_row + 1).min(7), (from_col + 1).min(7));
     if r != from_row && c != from_col {
         if let Some(f) = board[(r, c)]
             && f.player_color == PlayerColor::Black
         {
-            out.insert(ChessMove::new(
-                from_tile,
-                (r, c),
-                rate_standard_move(FigType::Pawn, Some(f.fig_type)),
-            ));
+            let (move_type, rating) = if r == 7 {
+                (
+                    MoveType::Promoting,
+                    utils::rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                )
+            } else {
+                (
+                    MoveType::Norm,
+                    rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                )
+            };
+            out.insert(ChessMove::new(from_tile, (r, c), rating, move_type));
         }
     }
     // 4. Move diagonally left, in case there is a black piece
@@ -257,11 +273,18 @@ pub fn white_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
         if let Some(f) = board[(r, c)]
             && f.player_color == PlayerColor::Black
         {
-            out.insert(ChessMove::new(
-                from_tile,
-                (r, c),
-                rate_standard_move(FigType::Pawn, Some(f.fig_type)),
-            ));
+            let (move_type, rating) = if r == 7 {
+                (
+                    MoveType::Promoting,
+                    utils::rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                )
+            } else {
+                (
+                    MoveType::Norm,
+                    rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                )
+            };
+            out.insert(ChessMove::new(from_tile, (r, c), rating, move_type));
         }
     }
 
@@ -274,16 +297,17 @@ pub fn black_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
     // 1. Move one down, if there is no other piece (including piece itself, in case of boundary wrap)
     let (r, c) = (from_row.saturating_sub(1), from_col);
     if board[(r, c)].is_none() {
-        out.insert(ChessMove::new(
-            from_tile,
-            (r, c),
-            rate_standard_move(FigType::Pawn, None),
-        ));
+        let (move_type, rating) = if r == 0 {
+            (MoveType::Promoting, utils::rate_promotion())
+        } else {
+            (MoveType::Norm, rate_standard_move(FigType::Pawn, None))
+        };
+        out.insert(ChessMove::new(from_tile, (r, c), rating, move_type));
     }
 
     // 2. Move two up, if there is no other piece in the way, and we start at row 1
     if from_row == 6 && board[(from_row - 1, c)].is_none() && board[(from_row - 2, c)].is_none() {
-        out.insert(ChessMove::new(
+        out.insert(ChessMove::norm(
             from_tile,
             (from_row - 2, from_col),
             1 + rate_standard_move(FigType::Pawn, None),
@@ -295,11 +319,18 @@ pub fn black_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
         if let Some(f) = board[(r, c)]
             && f.player_color == PlayerColor::White
         {
-            out.insert(ChessMove::new(
-                from_tile,
-                (r, c),
-                rate_standard_move(FigType::Pawn, Some(f.fig_type)),
-            ));
+            let (move_type, rating) = if r == 0 {
+                (
+                    MoveType::Promoting,
+                    utils::rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                )
+            } else {
+                (
+                    MoveType::Norm,
+                    rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                )
+            };
+            out.insert(ChessMove::new(from_tile, (r, c), rating, move_type));
         }
     }
     // 4. Move diagonally left, in case there is a white piece
@@ -308,11 +339,18 @@ pub fn black_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
         if let Some(f) = board[(r, c)]
             && f.player_color == PlayerColor::White
         {
-            out.insert(ChessMove::new(
-                from_tile,
-                (r, c),
-                rate_standard_move(FigType::Pawn, Some(f.fig_type)),
-            ));
+            let (move_type, rating) = if r == 0 {
+                (
+                    MoveType::Promoting,
+                    utils::rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                )
+            } else {
+                (
+                    MoveType::Norm,
+                    rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                )
+            };
+            out.insert(ChessMove::new(from_tile, (r, c), rating, move_type));
         }
     }
 
@@ -331,7 +369,7 @@ pub fn rook_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
                 if rook_color != block_fig.player_color {
                     // out.insert((r_next, from_col));
 
-                    out.insert(ChessMove::new(
+                    out.insert(ChessMove::norm(
                         from_tile,
                         (r_next, from_col),
                         rate_standard_move(FigType::Rook, Some(block_fig.fig_type)),
@@ -339,7 +377,7 @@ pub fn rook_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
                 }
                 break;
             } else {
-                out.insert(ChessMove::new(
+                out.insert(ChessMove::norm(
                     from_tile,
                     (r_next, from_col),
                     rate_standard_move(FigType::Rook, None),
@@ -350,7 +388,7 @@ pub fn rook_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
         for r_next in (0..from_row).rev() {
             if let Some(block_fig) = board[(r_next, from_col)] {
                 if rook_color != block_fig.player_color {
-                    out.insert(ChessMove::new(
+                    out.insert(ChessMove::norm(
                         from_tile,
                         (r_next, from_col),
                         rate_standard_move(FigType::Rook, Some(block_fig.fig_type)),
@@ -358,7 +396,7 @@ pub fn rook_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
                 }
                 break;
             } else {
-                out.insert(ChessMove::new(
+                out.insert(ChessMove::norm(
                     from_tile,
                     (r_next, from_col),
                     rate_standard_move(FigType::Rook, None),
@@ -370,7 +408,7 @@ pub fn rook_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
         for c_next in (from_col + 1)..=7 {
             if let Some(block_fig) = board[(from_row, c_next)] {
                 if rook_color != block_fig.player_color {
-                    out.insert(ChessMove::new(
+                    out.insert(ChessMove::norm(
                         from_tile,
                         (from_row, c_next),
                         rate_standard_move(FigType::Rook, Some(block_fig.fig_type)),
@@ -380,7 +418,7 @@ pub fn rook_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
                 }
                 break;
             } else {
-                out.insert(ChessMove::new(
+                out.insert(ChessMove::norm(
                     from_tile,
                     (from_row, c_next),
                     rate_standard_move(FigType::Rook, None),
@@ -393,7 +431,7 @@ pub fn rook_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
             if let Some(block_fig) = board[(from_row, c_next)] {
                 if rook_color != block_fig.player_color {
                     // out.insert((from_row, c_next));
-                    out.insert(ChessMove::new(
+                    out.insert(ChessMove::norm(
                         from_tile,
                         (from_row, c_next),
                         rate_standard_move(FigType::Rook, Some(block_fig.fig_type)),
@@ -402,7 +440,7 @@ pub fn rook_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
                 break;
             } else {
                 // out.insert((from_row, c_next));
-                out.insert(ChessMove::new(
+                out.insert(ChessMove::norm(
                     from_tile,
                     (from_row, c_next),
                     rate_standard_move(FigType::Rook, None),
@@ -426,7 +464,7 @@ pub fn bishop_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
                 if bishop_color != block_fig.player_color {
                     // out.insert((r_next, c_next));
 
-                    out.insert(ChessMove::new(
+                    out.insert(ChessMove::norm(
                         from_tile,
                         (r_next, c_next),
                         rate_standard_move(FigType::Bishop, Some(block_fig.fig_type)),
@@ -435,7 +473,7 @@ pub fn bishop_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
                 break;
             } else {
                 // out.insert((r_next, c_next));
-                out.insert(ChessMove::new(
+                out.insert(ChessMove::norm(
                     from_tile,
                     (r_next, c_next),
                     rate_standard_move(FigType::Bishop, None),
@@ -448,7 +486,7 @@ pub fn bishop_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
             if let Some(block_fig) = board[(r_next, c_next)] {
                 if bishop_color != block_fig.player_color {
                     // out.insert((r_next, c_next));
-                    out.insert(ChessMove::new(
+                    out.insert(ChessMove::norm(
                         from_tile,
                         (r_next, c_next),
                         rate_standard_move(FigType::Bishop, Some(block_fig.fig_type)),
@@ -457,7 +495,7 @@ pub fn bishop_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
                 break;
             } else {
                 // out.insert((r_next, c_next));
-                out.insert(ChessMove::new(
+                out.insert(ChessMove::norm(
                     from_tile,
                     (r_next, c_next),
                     rate_standard_move(FigType::Bishop, None),
@@ -470,7 +508,7 @@ pub fn bishop_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
             if let Some(block_fig) = board[(r_next, c_next)] {
                 if bishop_color != block_fig.player_color {
                     // out.insert((r_next, c_next));
-                    out.insert(ChessMove::new(
+                    out.insert(ChessMove::norm(
                         from_tile,
                         (r_next, c_next),
                         rate_standard_move(FigType::Bishop, Some(block_fig.fig_type)),
@@ -479,7 +517,7 @@ pub fn bishop_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
                 break;
             } else {
                 // out.insert((r_next, c_next));
-                out.insert(ChessMove::new(
+                out.insert(ChessMove::norm(
                     from_tile,
                     (r_next, c_next),
                     rate_standard_move(FigType::Bishop, None),
@@ -492,7 +530,7 @@ pub fn bishop_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
             if let Some(block_fig) = board[(r_next, c_next)] {
                 if bishop_color != block_fig.player_color {
                     // out.insert((r_next, c_next));
-                    out.insert(ChessMove::new(
+                    out.insert(ChessMove::norm(
                         from_tile,
                         (r_next, c_next),
                         rate_standard_move(FigType::Bishop, Some(block_fig.fig_type)),
@@ -501,7 +539,7 @@ pub fn bishop_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
                 break;
             } else {
                 // out.insert((r_next, c_next));
-                out.insert(ChessMove::new(
+                out.insert(ChessMove::norm(
                     from_tile,
                     (r_next, c_next),
                     rate_standard_move(FigType::Bishop, None),
@@ -586,7 +624,7 @@ pub fn knight_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
             None => true,
         })
         .map(|mv| {
-            ChessMove::new(
+            ChessMove::norm(
                 from_tile,
                 mv,
                 rate_standard_move(FigType::Knight, board[mv].map(|x| x.fig_type)),
@@ -647,7 +685,7 @@ pub fn king_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
             None => true,
         })
         .map(|mv| {
-            ChessMove::new(
+            ChessMove::norm(
                 from_tile,
                 mv,
                 rate_standard_move(FigType::King, board[mv].map(|x| x.fig_type)),
