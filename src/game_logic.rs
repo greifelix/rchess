@@ -1,17 +1,19 @@
 pub mod minmax_logic;
 pub mod movement_logic;
+use bevy::gltf::GltfMesh;
 use bevy::{platform::collections::HashMap, prelude::*};
+use bevy_egui::egui::ahash::{HashSet, HashSetExt};
 use core::panic;
 use itertools::{Itertools, iproduct};
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::ops::{Index, IndexMut};
 
 const WHITE_KING_SP: (u8, u8) = (0, 4);
 const BLACK_KING_SP: (u8, u8) = (7, 4);
 
 use crate::game_logic::movement_logic::{ChessMove, MoveType};
-use crate::utils::{self, idx_to_coordinates};
+use crate::queen_spawner;
+use crate::utils::{self, idx_to_coordinates, pawn_promotion};
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum FigType {
@@ -242,8 +244,14 @@ impl RochadeTracker {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct Board([[Option<Figure>; 8]; 8], RochadeTracker, RochadeTracker);
+/// Board contains all information for calculation of all possible moves (for both players)
+#[derive(Clone, PartialEq, Eq)]
+pub struct Board(
+    [[Option<Figure>; 8]; 8],
+    RochadeTracker,
+    RochadeTracker,
+    Option<ChessMove>,
+);
 
 impl Index<(u8, u8)> for Board {
     type Output = Option<Figure>;
@@ -267,13 +275,24 @@ impl Board {
         };
 
         match chess_move.move_type {
-            MoveType::Norm => {
+            MoveType::Norm | MoveType::DoublePawn => {
                 self[chess_move.to_tile] = self[chess_move.from_tile].take();
             }
-            MoveType::Promoting => panic!("Not implemented error!"),
-            MoveType::Passing => {
-                panic!("Not implemented error");
+            MoveType::Promoting => {
+                // Remove from original position, potentially kill
+                let old_pawn = self[chess_move.from_tile].take().unwrap();
+                let new_queen = pawn_promotion(old_pawn.ass_name, *color);
+                self[chess_move.to_tile] = Some(new_queen);
             }
+            MoveType::Passing => {
+                if let Some(last_move) = self.3.clone() {
+                    self[last_move.to_tile] = None;
+                    self[chess_move.to_tile] = self[chess_move.from_tile].take();
+                } else {
+                    panic!("In case of en-passant we should always have a valid last move.");
+                };
+            }
+
             MoveType::RochadeLeft => {
                 self[chess_move.to_tile] = self[chess_move.from_tile].take();
                 if chess_move.from_tile == WHITE_KING_SP {
@@ -291,6 +310,7 @@ impl Board {
                 }
             }
         };
+        self.3 = Some(chess_move.clone());
     }
 
     pub fn get_king_position(&self, fig_color: PlayerColor) -> (u8, u8) {
@@ -486,11 +506,11 @@ impl GameState {
     pub fn despawn_target(
         &self,
         commands: &mut Commands,
-        target_name: &str,
+        target_names: HashSet<&str>,
         piece_query: &mut Query<(Entity, &Name, &mut Transform)>,
     ) {
         for (e, n, _t) in piece_query {
-            if n.as_str() == target_name {
+            if target_names.contains(n.as_str()) {
                 commands.entity(e).despawn();
             }
         }
@@ -504,12 +524,45 @@ impl GameState {
         to_be_moved: &str,
         chess_move: &ChessMove,
         query: &mut Query<(Entity, &Name, &mut Transform)>,
+        chess_scene: &Res<crate::ChessScene>,
+        gltf_assets: &Res<Assets<Gltf>>,
+        gltf_meshes: &Res<Assets<GltfMesh>>,
     ) {
         move_asset(to_be_moved, query, chess_move);
         // ToDo: This may need an update for on passant?
+        let mut to_despawn: HashSet<&str> = HashSet::new();
         if let Some(target) = self.board[chess_move.to_tile].take() {
-            self.despawn_target(commands, target.ass_name, query);
+            to_despawn.insert(target.ass_name);
         }
+
+        if chess_move.move_type == MoveType::Passing {
+            let double_pawn_move = self.board.3.clone().unwrap().to_tile;
+            if let Some(target) = self.board[double_pawn_move].take() {
+                to_despawn.insert(target.ass_name);
+            }
+        }
+
+        if chess_move.move_type == MoveType::Promoting {
+            let color = self.board[chess_move.from_tile].unwrap().player_color;
+            let pawn_ass_name = self.board[chess_move.from_tile].unwrap().ass_name;
+
+            let ass_name = utils::pawn_promotion(pawn_ass_name, color).ass_name;
+
+            to_despawn.insert(pawn_ass_name);
+            queen_spawner(
+                commands,
+                chess_scene,
+                gltf_assets,
+                gltf_meshes,
+                color,
+                ass_name,
+                chess_move.to_tile,
+            );
+        }
+        if !to_despawn.is_empty() {
+            self.despawn_target(commands, to_despawn, query);
+        }
+
         self.board.update(chess_move, &self.player_turn);
         self.player_turn = self.player_turn.other_player();
         self.move_number += 1;
@@ -717,6 +770,7 @@ impl GameState {
                 raw_board,
                 RochadeTracker::new(PlayerColor::White),
                 RochadeTracker::new(PlayerColor::Black),
+                None,
             ),
             player_turn: PlayerColor::White,
             chosen_figure: None,

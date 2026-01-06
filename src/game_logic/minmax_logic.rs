@@ -32,7 +32,7 @@ impl MinMaxData {
     }
 }
 
-const MAX_DEPTH: u8 = 8;
+const MAX_DEPTH: u8 = 6;
 const MAXIMIZER: PlayerColor = PlayerColor::Black;
 
 /// This is just used as means to save the generated moves over time
@@ -105,12 +105,8 @@ pub fn retrieve_and_exec_minmax_result(
 ) {
     if let Some(t) = minmax_moves.data.get_mut(&game_state.move_number) {
         let status = block_on(future::poll_once(t));
-        if status.is_some() {
-            println!("The task finished!")
-        }
-        if let Some(max_move) = status.flatten() {
-            println!("Also we found a move, nice!  - Lets try to execute it!");
 
+        if let Some(max_move) = status.flatten() {
             let (from_row, from_col) = max_move.from_tile;
             let ass_name = game_state.board[(from_row, from_col)].unwrap().ass_name;
 

@@ -6,6 +6,7 @@ use utils::rate_standard_move;
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum MoveType {
     Norm,
+    DoublePawn,
     RochadeLeft,  // Long
     RochadeRight, // Short
     Passing,
@@ -228,6 +229,24 @@ pub fn maybe_add_rochade(player_color: &PlayerColor, moves: &mut Vec<ChessMove>,
 pub fn white_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
     let (from_row, from_col) = from_tile;
     let mut out = HashSet::new();
+
+    // 0. Add en passant, in case it is possible
+    if let Some(last_move) = &board.3
+        && last_move.move_type == MoveType::DoublePawn
+    {
+        // Check if enemy pawn is in the same row and next to own pawn
+        if last_move.to_tile.0 == from_tile.0
+            && (from_tile.1.max(last_move.to_tile.1) - from_tile.1.min(last_move.to_tile.1)) == 1
+        {
+            out.insert(ChessMove::new(
+                from_tile,
+                (last_move.to_tile.0 + 1, last_move.to_tile.1),
+                2 + rate_standard_move(FigType::Pawn, Some(FigType::Pawn)),
+                MoveType::Passing,
+            ));
+        }
+    }
+
     // 1. Move one up, if there is no other piece (including piece itself, in case of boundary wrap)
     let (r, c) = ((from_row + 1).min(7), from_col);
     if board[(r, c)].is_none() {
@@ -241,10 +260,11 @@ pub fn white_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
 
     // 2. Move two up, if there is no other piece in the way, and we start at row 1
     if from_row == 1 && board[(from_row + 1, c)].is_none() && board[(from_row + 2, c)].is_none() {
-        out.insert(ChessMove::norm(
+        out.insert(ChessMove::new(
             from_tile,
             (from_row + 2, from_col),
-            rate_standard_move(FigType::Pawn, None),
+            1 + rate_standard_move(FigType::Pawn, None),
+            MoveType::DoublePawn,
         ));
     }
     // 3. Move diagonal right, in case there is black piece
@@ -294,6 +314,24 @@ pub fn white_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
 pub fn black_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove> {
     let (from_row, from_col) = from_tile;
     let mut out = HashSet::new();
+
+    // 0. Add en passant, in case it is possible
+    if let Some(last_move) = &board.3
+        && last_move.move_type == MoveType::DoublePawn
+    {
+        // Check if enemy pawn is in the same row and next to own pawn
+        if last_move.to_tile.0 == from_tile.0
+            && (from_tile.1.max(last_move.to_tile.1) - from_tile.1.min(last_move.to_tile.1)) == 1
+        {
+            out.insert(ChessMove::new(
+                from_tile,
+                (last_move.to_tile.0 - 1, last_move.to_tile.1),
+                2 + rate_standard_move(FigType::Pawn, Some(FigType::Pawn)),
+                MoveType::Passing,
+            ));
+        }
+    }
+
     // 1. Move one down, if there is no other piece (including piece itself, in case of boundary wrap)
     let (r, c) = (from_row.saturating_sub(1), from_col);
     if board[(r, c)].is_none() {
@@ -307,10 +345,11 @@ pub fn black_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
 
     // 2. Move two up, if there is no other piece in the way, and we start at row 1
     if from_row == 6 && board[(from_row - 1, c)].is_none() && board[(from_row - 2, c)].is_none() {
-        out.insert(ChessMove::norm(
+        out.insert(ChessMove::new(
             from_tile,
             (from_row - 2, from_col),
             1 + rate_standard_move(FigType::Pawn, None),
+            MoveType::DoublePawn,
         ));
     }
     // 3. Move diagonal right /left, in case there is white piece

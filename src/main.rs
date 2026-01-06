@@ -18,7 +18,6 @@ fn main() {
         .insert_resource(game_logic::GameState::new())
         .insert_resource(game_logic::minmax_logic::GeneratedMoves::new())
         .add_systems(Startup, (environment_setup, board_setup).chain())
-        
         .add_systems(Update, figure_picking)
         .add_systems(
             Update,
@@ -157,7 +156,6 @@ fn figure_picking(
                         &gltf_assets,
                         &gltf_meshes,
                     );
-
                 }
                 game_state.chosen_figure = None;
                 game_state.possible_moves = None;
@@ -181,7 +179,7 @@ fn figure_picking(
                         .into_iter()
                         .collect();
 
-                // Only add the rochade possibility in case we added the king
+                // Only add the rochade possibility in case we picked the king
                 if game_state.chosen_figure.unwrap().0.fig_type == FigType::King {
                     movement_logic::maybe_add_rochade(
                         &game_state.player_turn,
