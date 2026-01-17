@@ -1,5 +1,5 @@
 use crate::game_logic::*;
-use bevy_egui::egui::menu::bar;
+// use bevy_egui::egui::menu::bar;
 
 use utils::rate_standard_move;
 
@@ -125,7 +125,7 @@ impl MoveBuilder {
 /// Calculate all moves and perform move ordering of the moves.
 pub fn calculate_all_smarter(board: &Board, player_color: PlayerColor) -> Vec<ChessMove> {
     let king_pos = board.get_king_position(player_color);
-    if let Some((threat_r, threat_c, threat_type)) = board.player_in_check(player_color) {
+    if let Some((threat_r, threat_c, _threat_type)) = board.player_in_check(player_color) {
         let dir_to_threat = Direction::determine_direction_from_to(king_pos, (threat_r, threat_c));
 
         let mut stopper_tiles: HashSet<(u8, u8)> =
