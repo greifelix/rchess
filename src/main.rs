@@ -1,16 +1,17 @@
-use bevy::color::palettes::css::{CRIMSON, NAVY};
+mod game_logic;
+mod menu;
+mod utils;
+
 use bevy::gltf::{Gltf, GltfExtras, GltfMesh};
 use bevy::prelude::*;
 // use bevy_egui::EguiPlugin;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 use crate::game_logic::movement_logic::{self, MoveBuilder};
-
 use crate::game_logic::{FigType, PlayerColor, minmax_logic};
-
-mod game_logic;
-mod utils;
-
+use crate::menu::escape_menu::escape_menu_plugin;
+use crate::menu::{GuiState, menu_plugin};
+use crate::minmax_logic::player_vs_minmax_plugin;
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, MeshPickingPlugin))
@@ -18,198 +19,22 @@ fn main() {
         // .add_plugins(WorldInspectorPlugin::new())
         .insert_resource(game_logic::GameState::new())
         .insert_resource(game_logic::minmax_logic::GeneratedMoves::new())
+        .insert_resource(menu::settings::GameMode::default())
         .init_state::<GuiState>()
-        .init_state::<GameMode>()
         .add_systems(Startup, (environment_setup, board_setup).chain())
         .add_systems(Update, figure_picking)
         .add_plugins(menu_plugin)
+        .add_plugins(escape_menu_plugin)
         .add_plugins(player_vs_minmax_plugin)
         .run();
 }
 
-// UI-State of the game
-#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
-enum GuiState {
-    #[default]
-    StartPage,
-    EscapePage,
-    SettingsPage,
-    GameOver,
-    InGame,
-}
-
-#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
-enum GameMode {
-    #[default]
-    PVE,
-    PVP,
-}
-
-// All actions that can be triggered from a button click
-#[derive(Component)]
-enum MenuButtonAction {
-    Play,
-    Settings,
-    BackToMainMenu,
-    BackToSettings,
-    Quit,
-}
-
-// This system handles changing all buttons color based on mouse interaction
-fn button_system(
-    mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor),
-        (Changed<Interaction>, With<Button>),
-    >,
-) {
-    for (interaction, mut background_color) in &mut interaction_query {
-        *background_color = match (*interaction) {
-            Interaction::Pressed => PRESSED_BUTTON.into(),
-            Interaction::Hovered => HOVERED_BUTTON.into(),
-            Interaction::None => NORMAL_BUTTON.into(),
-        }
-    }
-}
-
-const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
-const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
-const HOVERED_PRESSED_BUTTON: Color = Color::srgb(0.25, 0.65, 0.25);
-const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
-
-const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
-
-pub fn menu_plugin(app: &mut App) {
-    app.add_systems(OnEnter(GuiState::StartPage), menu_setup)
-        .add_systems(
-            Update,
-            (button_system, menu_action).run_if(in_state(GuiState::StartPage)), //menu_action,
-        );
-}
-
-fn menu_action(
-    interaction_query: Query<
-        (&Interaction, &MenuButtonAction),
-        (Changed<Interaction>, With<Button>),
-    >,
-    mut app_exit_writer: MessageWriter<AppExit>,
-    mut gui_state: ResMut<NextState<GuiState>>,
-) {
-    for (interaction, menu_button_action) in &interaction_query {
-        if *interaction == Interaction::Pressed {
-            match menu_button_action {
-                MenuButtonAction::Quit => {
-                    app_exit_writer.write(AppExit::Success);
-                }
-                MenuButtonAction::Play => {
-                    gui_state.set(GuiState::InGame);
-                }
-                MenuButtonAction::Settings => gui_state.set(GuiState::SettingsPage),
-                _ => {
-                    println!("Pressed some unexpected button!");
-                }
-            }
-        }
-    }
-}
-
-fn menu_setup(mut commands: Commands) {
-    // Common style for all buttons on the screen
-    let button_node = Node {
-        width: px(300),
-        height: px(65),
-        margin: UiRect::all(px(20)),
-        justify_content: JustifyContent::Center,
-        align_items: AlignItems::Center,
-        ..default()
-    };
-
-    let button_text_font = TextFont {
-        font_size: 33.0,
-        ..default()
-    };
-
-    commands.spawn((
-        DespawnOnExit(GuiState::StartPage),
-        Node {
-            width: percent(100),
-            height: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            ..default()
-        },
-        children![(
-            Node {
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(NAVY.into()),
-            children![
-                // Display the game name
-                (
-                    Text::new("Rchess Menü"),
-                    TextFont {
-                        font_size: 67.0,
-                        ..default()
-                    },
-                    TextColor(TEXT_COLOR),
-                    Node {
-                        margin: UiRect::all(px(50)),
-                        ..default()
-                    },
-                ),
-                (
-                    Button,
-                    button_node.clone(),
-                    BackgroundColor(NORMAL_BUTTON),
-                    MenuButtonAction::Play,
-                    children![(
-                        Text::new("New Game"),
-                        button_text_font.clone(),
-                        TextColor(TEXT_COLOR),
-                    ),]
-                ),
-                (
-                    Button,
-                    button_node.clone(),
-                    BackgroundColor(NORMAL_BUTTON),
-                    MenuButtonAction::Settings,
-                    children![(
-                        Text::new("Settings"),
-                        button_text_font.clone(),
-                        TextColor(TEXT_COLOR),
-                    ),]
-                ),
-                (
-                    Button,
-                    button_node,
-                    BackgroundColor(NORMAL_BUTTON),
-                    MenuButtonAction::Quit,
-                    children![(Text::new("Quit"), button_text_font, TextColor(TEXT_COLOR),),]
-                ),
-            ]
-        )],
-    ));
-}
-
-pub fn player_vs_minmax_plugin(app: &mut App) {
-    app.add_systems(
-        Update,
-        (
-            minmax_logic::spawn_minmax_task,
-            minmax_logic::retrieve_and_exec_minmax_result,
-        )
-            .run_if(in_state(GameMode::PVE)),
-    );
-
-    // // When entering the state, spawn everything needed for this screen
-    // .add_systems(OnEnter(GameState::Splash), splash_setup)
-    // // While in this state, run the `countdown` system
-    // .add_systems(Update, countdown.run_if(in_state(GameState::Splash)));
-}
-
 #[derive(Resource)]
 pub struct ChessScene(Handle<Gltf>);
+
+/// Use this marker for respawning everything
+#[derive(Component)]
+struct WoodenPiece;
 
 #[derive(Component)]
 struct SurfaceTile;
@@ -268,6 +93,7 @@ fn queen_spawner(
             .clone()
             .unwrap_or(GltfExtras::default()),
         Name::from(queen_name),
+        WoodenPiece,
     ));
 }
 
@@ -285,6 +111,7 @@ fn board_setup(
         Transform::from_xyz(0.0, 0.0, 0.0),
         SceneRoot(scene_handle),
         Name::new("Original Chess Scene"),
+        WoodenPiece,
     ));
 
     let square_size = 0.05;

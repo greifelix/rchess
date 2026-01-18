@@ -10,12 +10,16 @@ use crate::game_logic::{
     Board, FigType, GameState, PlayerColor,
     movement_logic::{self, ChessMove},
 };
+use crate::menu::settings::GameMode;
 use bevy::platform::collections::HashMap;
 
-// pub fn singleplayer_plugin(app: &mut App) {
-//     app.insert_resource(GeneratedMoves::new())
-//         .add_systems(Update, (spawn_minmax_task, retrieve_and_exec_minmax_result));
-// }
+pub fn player_vs_minmax_plugin(app: &mut App) {
+    app.add_systems(
+        Update,
+        (spawn_minmax_task, retrieve_and_exec_minmax_result)
+            .run_if(|game_mode: Res<GameMode>| *game_mode == GameMode::PVE),
+    );
+}
 
 #[derive(Clone)]
 pub struct MinMaxData {
