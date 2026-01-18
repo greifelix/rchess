@@ -135,7 +135,7 @@ pub fn mmax(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16
 
     if depth == 0 || num_moves_left == 0 {
         if num_moves_left > 0 {
-            return MinMaxData::new_val(evaluate_board(board, &MAXIMIZER));
+            return MinMaxData::new_val(evaluate_board(board, &MAXIMIZER)); // FIXME: Is this really correct? Shouldnt we use PlayerColor?
         } else {
             return MinMaxData::new_val(i16::MIN);
         }
@@ -184,7 +184,7 @@ pub fn mmin(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16
     let mut min_value = beta;
     if depth == 0 || num_moves_left == 0 {
         if num_moves_left > 0 {
-            return evaluate_board(board, &MAXIMIZER);
+            return evaluate_board(board, &MAXIMIZER); // FIXME: Is this really correct? Shouldnt we use PlayerColor?
         } else {
             return i16::MAX;
         }
