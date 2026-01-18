@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::{GuiState, NORMAL_BUTTON, TEXT_COLOR, button_render_system, escape_system};
+use super::{GuiState, NORMAL_BUTTON, TEXT_COLOR, button_render_system};
 use bevy::color::palettes::css::BURLYWOOD;
 
 // All actions that can be triggered from a button click

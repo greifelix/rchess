@@ -6,11 +6,14 @@ use bevy::{
     tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future},
 };
 
-use crate::game_logic::{
-    Board, FigType, GameState, PlayerColor,
-    movement_logic::{self, ChessMove},
-};
 use crate::menu::settings::GameMode;
+use crate::{
+    game_logic::{
+        Board, FigType, GameState, PlayerColor,
+        movement_logic::{self, ChessMove},
+    },
+    menu::settings::GameSettings,
+};
 use bevy::platform::collections::HashMap;
 
 pub fn player_vs_minmax_plugin(app: &mut App) {
@@ -35,9 +38,6 @@ impl MinMaxData {
         }
     }
 }
-
-const MAX_DEPTH: u8 = 6;
-const MAXIMIZER: PlayerColor = PlayerColor::Black;
 
 /// This is just used as means to save the generated moves over time
 #[derive(Resource)]
@@ -82,15 +82,21 @@ pub fn evaluate_board(board: &Board, maximizer: &PlayerColor) -> i16 {
 }
 
 /// Spawns an asynchronous task to find a move for the black player, in case there is not one spawned yet
-pub fn spawn_minmax_task(game_state: Res<GameState>, mut minmax_moves: ResMut<GeneratedMoves>) {
-    if game_state.player_turn == MAXIMIZER
+pub fn spawn_minmax_task(
+    game_state: Res<GameState>,
+    mut minmax_moves: ResMut<GeneratedMoves>,
+    game_settings: Res<GameSettings>,
+) {
+    let maximizer = game_settings.player_color.other_player();
+
+    if game_state.player_turn == maximizer
         && !minmax_moves.data.contains_key(&game_state.move_number)
     {
         let task_pool = AsyncComputeTaskPool::get();
-
+        let max_depth = game_settings.difficulty;
         let board = game_state.board.clone();
         let task = task_pool.spawn(async move {
-            let found_move = mmax(MAXIMIZER, MAX_DEPTH, &board, i16::MIN, i16::MAX);
+            let found_move = mmax(maximizer, max_depth, &board, i16::MIN, i16::MAX);
             found_move.max_move
         });
 
@@ -135,7 +141,7 @@ pub fn mmax(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16
 
     if depth == 0 || num_moves_left == 0 {
         if num_moves_left > 0 {
-            return MinMaxData::new_val(evaluate_board(board, &MAXIMIZER)); // FIXME: Is this really correct? Shouldnt we use PlayerColor?
+            return MinMaxData::new_val(evaluate_board(board, &player));
         } else {
             return MinMaxData::new_val(i16::MIN);
         }
@@ -158,9 +164,9 @@ pub fn mmax(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16
 
         if mmin_val > max_value {
             max_value = mmin_val;
-            if depth == MAX_DEPTH {
-                max_move = Some(chess_move.clone());
-            }
+
+            // NOTE: The max move is really only necessary on the highest level; after recursion is complete.
+            max_move = Some(chess_move);
 
             if max_value >= beta {
                 return MinMaxData {
@@ -184,7 +190,7 @@ pub fn mmin(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16
     let mut min_value = beta;
     if depth == 0 || num_moves_left == 0 {
         if num_moves_left > 0 {
-            return evaluate_board(board, &MAXIMIZER); // FIXME: Is this really correct? Shouldnt we use PlayerColor?
+            return evaluate_board(board, &player.other_player());
         } else {
             return i16::MAX;
         }

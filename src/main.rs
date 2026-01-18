@@ -6,25 +6,28 @@ use bevy::gltf::{Gltf, GltfExtras, GltfMesh};
 use bevy::prelude::*;
 // use bevy_egui::EguiPlugin;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
+// .add_plugins(EguiPlugin::default())
+// .add_plugins(WorldInspectorPlugin::new())
 
 use crate::game_logic::movement_logic::{self, MoveBuilder};
 use crate::game_logic::{FigType, PlayerColor, minmax_logic};
 use crate::menu::escape_menu::escape_menu_plugin;
+use crate::menu::settings::settings_menu_plugin;
 use crate::menu::{GuiState, menu_plugin};
 use crate::minmax_logic::player_vs_minmax_plugin;
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, MeshPickingPlugin))
-        // .add_plugins(EguiPlugin::default())
-        // .add_plugins(WorldInspectorPlugin::new())
         .insert_resource(game_logic::GameState::new())
         .insert_resource(game_logic::minmax_logic::GeneratedMoves::new())
+        .insert_resource(menu::settings::GameSettings::default())
         .insert_resource(menu::settings::GameMode::default())
         .init_state::<GuiState>()
         .add_systems(Startup, (environment_setup, board_setup).chain())
         .add_systems(Update, figure_picking)
         .add_plugins(menu_plugin)
         .add_plugins(escape_menu_plugin)
+        .add_plugins(settings_menu_plugin)
         .add_plugins(player_vs_minmax_plugin)
         .run();
 }

@@ -6,6 +6,7 @@ use bevy::color::palettes::css::NAVY;
 
 use crate::WoodenPiece;
 use crate::game_logic::{GameState, minmax_logic};
+
 // UI-State of the game
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
 pub enum GuiState {
@@ -27,6 +28,9 @@ enum MenuButtonAction {
     BackToSettings,
     Quit,
 }
+
+#[derive(Component)]
+struct Selected;
 
 /// Resets entire board and stuff
 /// TODO: Check if we can get the existing resources instead.
@@ -56,22 +60,6 @@ fn reset_system(
         WoodenPiece,
     ));
 
-    let square_size = 0.05;
-
-    for (row, _row_c) in (0..8).zip('1'..='8') {
-        for (col, _col_c) in (0..8).zip('a'..='h') {
-            let (row_offset, col_offset) = crate::utils::idx_to_coordinates(row, col);
-
-            commands.spawn((
-                Mesh3d(meshes.add(Plane3d::default().mesh().size(square_size, square_size))),
-                Transform::from_xyz(col_offset, 0.01, row_offset),
-                Name::new(format!("Tile_{}_{}", row, col)),
-                MeshMaterial3d(materials.add(Color::NONE)),
-                crate::SurfaceTile,
-            ));
-        }
-    }
-
     next_state.set(GuiState::InGame);
 }
 
@@ -95,15 +83,16 @@ fn escape_system(
 // This system handles changing all buttons color based on mouse interaction
 fn button_render_system(
     mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor),
+        (&Interaction, &mut BackgroundColor, Option<&Selected>),
         (Changed<Interaction>, With<Button>),
     >,
 ) {
-    for (interaction, mut background_color) in &mut interaction_query {
-        *background_color = match (*interaction) {
-            Interaction::Pressed => PRESSED_BUTTON.into(),
-            Interaction::Hovered => HOVERED_BUTTON.into(),
-            Interaction::None => NORMAL_BUTTON.into(),
+    for (interaction, mut background_color, maybe_selected) in &mut interaction_query {
+        *background_color = match (*interaction, maybe_selected) {
+            (Interaction::Pressed, _) | (Interaction::None, Some(_)) => PRESSED_BUTTON.into(),
+            (Interaction::Hovered, Some(_)) => HOVERED_PRESSED_BUTTON.into(),
+            (Interaction::Hovered, None) => HOVERED_BUTTON.into(),
+            (Interaction::None, None) => NORMAL_BUTTON.into(),
         }
     }
 }
@@ -203,7 +192,7 @@ fn menu_setup(mut commands: Commands) {
                     BackgroundColor(NORMAL_BUTTON),
                     MenuButtonAction::Play,
                     children![(
-                        Text::new("New Game"),
+                        Text::new("To Game"),
                         button_text_font.clone(),
                         TextColor(TEXT_COLOR),
                     ),]
