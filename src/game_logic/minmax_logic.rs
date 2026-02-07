@@ -6,7 +6,7 @@ use bevy::{
     tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future},
 };
 
-use crate::menu::settings::GameMode;
+use crate::menu::{GuiState, settings::GameMode};
 use crate::{
     game_logic::{
         Board, FigType, GameState, PlayerColor,
@@ -20,7 +20,8 @@ pub fn player_vs_minmax_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (spawn_minmax_task, retrieve_and_exec_minmax_result)
-            .run_if(|game_mode: Res<GameMode>| *game_mode == GameMode::PVE),
+            .run_if(|game_settings: Res<GameSettings>| game_settings.game_mode == GameMode::PVE)
+            .run_if(in_state(GuiState::InGame)),
     );
 }
 

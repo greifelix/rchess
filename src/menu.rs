@@ -2,8 +2,6 @@ pub mod escape_menu;
 pub mod settings;
 use bevy::prelude::*;
 
-use bevy::color::palettes::css::NAVY;
-
 use crate::WoodenPiece;
 use crate::game_logic::{GameState, minmax_logic};
 
@@ -29,8 +27,18 @@ enum MenuButtonAction {
     Quit,
 }
 
+// General Selected
 #[derive(Component)]
 struct Selected;
+
+#[derive(Component)]
+struct SelectedDifficulty;
+
+#[derive(Component)]
+struct SelectedMode;
+
+#[derive(Component)]
+struct SelectedColor;
 
 /// Resets entire board and stuff
 /// TODO: Check if we can get the existing resources instead.
@@ -171,7 +179,7 @@ fn menu_setup(mut commands: Commands) {
                 align_items: AlignItems::Center,
                 ..default()
             },
-            BackgroundColor(NAVY.into()),
+            // BackgroundColor(NAVY.into()),
             children![
                 // Display the game name
                 (

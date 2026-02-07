@@ -21,7 +21,7 @@ fn main() {
         .insert_resource(game_logic::GameState::new())
         .insert_resource(game_logic::minmax_logic::GeneratedMoves::new())
         .insert_resource(menu::settings::GameSettings::default())
-        .insert_resource(menu::settings::GameMode::default())
+        // .insert_resource(menu::settings::GameMode::default())
         .init_state::<GuiState>()
         .add_systems(Startup, (environment_setup, board_setup).chain())
         .add_systems(Update, figure_picking)
