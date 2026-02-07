@@ -4,6 +4,7 @@ use bevy::{
 };
 
 use crate::{
+    BlackCamera,
     game_logic::PlayerColor,
     menu::{SelectedColor, SelectedDifficulty, SelectedMode},
 };
@@ -86,6 +87,7 @@ fn settings_menu_action(
     mut gui_state: ResMut<NextState<GuiState>>,
     mut settings: ResMut<GameSettings>,
     mut commands: Commands,
+    black_camera: Query<Entity, With<BlackCamera>>,
 ) {
     let (previous_diff_button, mut previous_diff_color) = selected_difficulty.into_inner();
     let (previous_mode_button, mut previous_mode_color) = selected_game_mode.into_inner();
@@ -113,7 +115,17 @@ fn settings_menu_action(
                     commands
                         .entity(previous_mode_button)
                         .remove::<(Selected, SelectedMode)>();
+
                     commands.entity(entity).insert((Selected, SelectedMode));
+
+                    if *mode == GameMode::PVE {
+                        // Despawn other camera
+                        for e in black_camera {
+                            commands.entity(e).despawn();
+                        }
+                    } else {
+                        _split_screen_helper(&mut commands);
+                    }
                 }
                 SettingsButtonAction::PlayerToggle(player) => {
                     settings.player_color = *player;
@@ -133,6 +145,23 @@ fn settings_menu_action(
             }
         }
     }
+}
+
+fn _split_screen_helper(commands: &mut Commands) {
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(0.0, 0.5, -0.5).looking_at(Vec3::ZERO, Vec3::Y),
+        Camera {
+            // Renders cameras with different priorities to prevent ambiguities
+            order: 1,
+            ..default()
+        },
+        crate::CameraPosition {
+            pos: UVec2::new(1, 0),
+        },
+        MeshPickingCamera,
+        BlackCamera,
+    ));
 }
 
 fn flatter_settings(mut commands: Commands, settings: Res<GameSettings>) {

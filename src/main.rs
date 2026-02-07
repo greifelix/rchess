@@ -3,7 +3,7 @@ mod menu;
 mod utils;
 
 use bevy::gltf::{Gltf, GltfExtras, GltfMesh};
-use bevy::prelude::*;
+use bevy::{camera::Viewport, prelude::*, window::WindowResized};
 // use bevy_egui::EguiPlugin;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
 // .add_plugins(EguiPlugin::default())
@@ -12,7 +12,7 @@ use bevy::prelude::*;
 use crate::game_logic::movement_logic::{self, MoveBuilder};
 use crate::game_logic::{FigType, PlayerColor, minmax_logic};
 use crate::menu::escape_menu::escape_menu_plugin;
-use crate::menu::settings::settings_menu_plugin;
+use crate::menu::settings::{GameMode, GameSettings, settings_menu_plugin};
 use crate::menu::{GuiState, menu_plugin};
 use crate::minmax_logic::player_vs_minmax_plugin;
 fn main() {
@@ -21,10 +21,10 @@ fn main() {
         .insert_resource(game_logic::GameState::new())
         .insert_resource(game_logic::minmax_logic::GeneratedMoves::new())
         .insert_resource(menu::settings::GameSettings::default())
-        // .insert_resource(menu::settings::GameMode::default())
         .init_state::<GuiState>()
         .add_systems(Startup, (environment_setup, board_setup).chain())
         .add_systems(Update, figure_picking)
+        .add_systems(Update, set_camera_viewports)
         .add_plugins(menu_plugin)
         .add_plugins(escape_menu_plugin)
         .add_plugins(settings_menu_plugin)
@@ -42,11 +42,31 @@ struct WoodenPiece;
 #[derive(Component)]
 struct SurfaceTile;
 
+#[derive(Component)]
+struct CameraPosition {
+    pos: UVec2,
+}
+
+#[derive(Component)]
+struct WhiteCamera;
+
+#[derive(Component)]
+struct BlackCamera;
+
 fn environment_setup(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 0.5, 0.5).looking_at(Vec3::ZERO, Vec3::Y),
+        Camera {
+            // Renders cameras with different priorities to prevent ambiguities
+            order: 0,
+            ..default()
+        },
+        CameraPosition {
+            pos: UVec2::new(0, 0),
+        },
         MeshPickingCamera,
+        WhiteCamera,
     ));
 
     commands
@@ -242,6 +262,31 @@ fn reset_tile_highlights(
     for (_e, _n, mat) in tile_query {
         if let Some(material) = materials.get_mut(&mat.0) {
             material.base_color = Color::NONE;
+        }
+    }
+}
+
+fn set_camera_viewports(
+    windows: Query<&Window>,
+    mut window_resized_reader: MessageReader<WindowResized>,
+    mut query: Query<(&CameraPosition, &mut Camera)>,
+    settings: Res<GameSettings>,
+) {
+    for window_resized in window_resized_reader.read() {
+        let window = windows.get(window_resized.window).unwrap();
+
+        let size = if settings.game_mode == GameMode::PVP {
+            UVec2::from((window.physical_size().x / 2, window.physical_size().y))
+        } else {
+            window.physical_size()
+        };
+
+        for (camera_position, mut camera) in &mut query {
+            camera.viewport = Some(Viewport {
+                physical_position: camera_position.pos * size,
+                physical_size: size,
+                ..default()
+            });
         }
     }
 }
