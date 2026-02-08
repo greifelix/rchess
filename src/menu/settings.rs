@@ -4,7 +4,7 @@ use bevy::{
 };
 
 use crate::{
-    BlackCamera,
+    BlackCamera, WhiteCamera,
     game_logic::PlayerColor,
     menu::{SelectedColor, SelectedDifficulty, SelectedMode},
 };
@@ -18,6 +18,15 @@ pub enum GameMode {
     PVE,
     PVP,
 }
+
+enum ScreenMessage {
+    OnePlayerBlack,
+    OnePlayerWhite,
+    TwoPlayer,
+}
+
+#[derive(Message)]
+pub struct SwitchScreenMessage(ScreenMessage);
 
 #[derive(Component)]
 enum SettingsButtonAction {
@@ -47,10 +56,16 @@ impl Default for GameSettings {
 }
 
 pub fn settings_menu_plugin(app: &mut App) {
-    app.add_systems(OnEnter(GuiState::SettingsPage), flatter_settings)
+    app.add_message::<SwitchScreenMessage>()
+        .add_systems(OnEnter(GuiState::SettingsPage), flatter_settings)
         .add_systems(
             Update,
-            (button_render_system, settings_menu_action).run_if(in_state(GuiState::SettingsPage)),
+            (
+                button_render_system,
+                settings_menu_action,
+                switch_screen_mode,
+            )
+                .run_if(in_state(GuiState::SettingsPage)),
         );
 }
 
@@ -84,10 +99,11 @@ fn settings_menu_action(
             Without<SelectedMode>,
         ),
     >,
+    mut message_writer: MessageWriter<SwitchScreenMessage>,
     mut gui_state: ResMut<NextState<GuiState>>,
     mut settings: ResMut<GameSettings>,
     mut commands: Commands,
-    black_camera: Query<Entity, With<BlackCamera>>,
+    // black_camera: Query<Entity, With<BlackCamera>>,
 ) {
     let (previous_diff_button, mut previous_diff_color) = selected_difficulty.into_inner();
     let (previous_mode_button, mut previous_mode_color) = selected_game_mode.into_inner();
@@ -119,12 +135,15 @@ fn settings_menu_action(
                     commands.entity(entity).insert((Selected, SelectedMode));
 
                     if *mode == GameMode::PVE {
-                        // Despawn other camera
-                        for e in black_camera {
-                            commands.entity(e).despawn();
+                        if settings.player_color == PlayerColor::White {
+                            message_writer
+                                .write(SwitchScreenMessage(ScreenMessage::OnePlayerWhite));
+                        } else {
+                            message_writer
+                                .write(SwitchScreenMessage(ScreenMessage::OnePlayerBlack));
                         }
                     } else {
-                        _split_screen_helper(&mut commands);
+                        message_writer.write(SwitchScreenMessage(ScreenMessage::TwoPlayer));
                     }
                 }
                 SettingsButtonAction::PlayerToggle(player) => {
@@ -138,6 +157,16 @@ fn settings_menu_action(
                         .entity(previous_player_button)
                         .remove::<(Selected, SelectedColor)>();
                     commands.entity(entity).insert((Selected, SelectedColor));
+
+                    if settings.game_mode == GameMode::PVE {
+                        if *player == PlayerColor::White {
+                            message_writer
+                                .write(SwitchScreenMessage(ScreenMessage::OnePlayerWhite));
+                        } else {
+                            message_writer
+                                .write(SwitchScreenMessage(ScreenMessage::OnePlayerBlack));
+                        }
+                    }
                 }
                 _ => {
                     println!("Pressed some unexpected button!");
@@ -147,21 +176,87 @@ fn settings_menu_action(
     }
 }
 
-fn _split_screen_helper(commands: &mut Commands) {
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_xyz(0.0, 0.5, -0.5).looking_at(Vec3::ZERO, Vec3::Y),
-        Camera {
-            // Renders cameras with different priorities to prevent ambiguities
-            order: 1,
-            ..default()
-        },
-        crate::CameraPosition {
-            pos: UVec2::new(1, 0),
-        },
-        MeshPickingCamera,
-        BlackCamera,
-    ));
+//black_camera: Query<Entity, With<BlackCamera>>,
+
+/// Switches between splitscreen and regular based on incoming messages.
+fn switch_screen_mode(
+    mut commands: Commands,
+    mut message_reader: MessageReader<SwitchScreenMessage>,
+    black_camera_query: Query<(Entity, &BlackCamera), Without<WhiteCamera>>,
+    white_camera_query: Query<(Entity, &WhiteCamera), Without<BlackCamera>>,
+) {
+    let Some(msg) = message_reader.read().next() else {
+        return;
+    };
+
+    for (e, _) in black_camera_query {
+        commands.entity(e).despawn();
+    }
+    for (e, _) in white_camera_query {
+        commands.entity(e).despawn();
+    }
+
+    match msg.0 {
+        ScreenMessage::OnePlayerBlack => {
+            commands.spawn((
+                Camera3d::default(),
+                Transform::from_xyz(0.0, 0.5, -0.5).looking_at(Vec3::ZERO, Vec3::Y),
+                Camera {
+                    order: 0,
+                    ..default()
+                },
+                crate::CameraPosition {
+                    pos: UVec2::new(0, 0),
+                },
+                MeshPickingCamera,
+                BlackCamera,
+            ));
+        }
+        ScreenMessage::OnePlayerWhite => {
+            commands.spawn((
+                Camera3d::default(),
+                Transform::from_xyz(0.0, 0.5, 0.5).looking_at(Vec3::ZERO, Vec3::Y),
+                Camera {
+                    order: 0,
+                    ..default()
+                },
+                crate::CameraPosition {
+                    pos: UVec2::new(0, 0),
+                },
+                MeshPickingCamera,
+                WhiteCamera,
+            ));
+        }
+        ScreenMessage::TwoPlayer => {
+            commands.spawn((
+                Camera3d::default(),
+                Transform::from_xyz(0.0, 0.6, 0.6).looking_at(Vec3::ZERO, Vec3::Y),
+                Camera {
+                    order: 0,
+                    ..default()
+                },
+                crate::CameraPosition {
+                    pos: UVec2::new(0, 0),
+                },
+                MeshPickingCamera,
+                WhiteCamera,
+            ));
+
+            commands.spawn((
+                Camera3d::default(),
+                Transform::from_xyz(0.0, 0.6, -0.6).looking_at(Vec3::ZERO, Vec3::Y),
+                Camera {
+                    order: 1,
+                    ..default()
+                },
+                crate::CameraPosition {
+                    pos: UVec2::new(1, 0),
+                },
+                MeshPickingCamera,
+                BlackCamera,
+            ));
+        }
+    }
 }
 
 fn flatter_settings(mut commands: Commands, settings: Res<GameSettings>) {

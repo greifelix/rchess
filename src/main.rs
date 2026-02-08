@@ -54,11 +54,19 @@ struct WhiteCamera;
 struct BlackCamera;
 
 fn environment_setup(mut commands: Commands) {
+    // I need camera for UI for splitscreen mode
+    commands.spawn((
+        Camera2d,
+        Camera {
+            order: 2,
+            ..default()
+        },
+    ));
+
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 0.5, 0.5).looking_at(Vec3::ZERO, Vec3::Y),
         Camera {
-            // Renders cameras with different priorities to prevent ambiguities
             order: 0,
             ..default()
         },
@@ -268,13 +276,11 @@ fn reset_tile_highlights(
 
 fn set_camera_viewports(
     windows: Query<&Window>,
-    mut window_resized_reader: MessageReader<WindowResized>,
+    // mut window_resized_reader: MessageReader<WindowResized>,
     mut query: Query<(&CameraPosition, &mut Camera)>,
     settings: Res<GameSettings>,
 ) {
-    for window_resized in window_resized_reader.read() {
-        let window = windows.get(window_resized.window).unwrap();
-
+    for window in windows {
         let size = if settings.game_mode == GameMode::PVP {
             UVec2::from((window.physical_size().x / 2, window.physical_size().y))
         } else {
