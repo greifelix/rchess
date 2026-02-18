@@ -3,11 +3,7 @@ mod menu;
 mod utils;
 
 use bevy::gltf::{Gltf, GltfExtras, GltfMesh};
-use bevy::{camera::Viewport, prelude::*, window::WindowResized};
-// use bevy_egui::EguiPlugin;
-// use bevy_inspector_egui::quick::WorldInspectorPlugin;
-// .add_plugins(EguiPlugin::default())
-// .add_plugins(WorldInspectorPlugin::new())
+use bevy::{camera::Viewport, prelude::*};
 
 use crate::game_logic::movement_logic::{self, MoveBuilder};
 use crate::game_logic::{FigType, PlayerColor, minmax_logic};
@@ -80,11 +76,11 @@ fn environment_setup(mut commands: Commands) {
     commands
         .spawn(DirectionalLight {
             shadows_enabled: true,
-            illuminance: 5000.,
+            illuminance: 10000.,
             ..Default::default()
         })
         .insert(
-            Transform::from_xyz(0.0, 0.0, 0.0).looking_to(Vec3::new(-0.5, -1.0, -0.5), Vec3::Y),
+            Transform::from_xyz(0.0, 0.8, 0.0).looking_to(Vec3::new(-0.5, -1.0, -0.5), Vec3::Y),
         );
 }
 
@@ -210,7 +206,7 @@ fn figure_picking(
                 let mut movelist: Vec<movement_logic::ChessMove> =
                     MoveBuilder::new(clicked_tile, &game_state.board)
                         .calculate_naive_moves(&game_state.board)
-                        ._filter_brute_force_2(&game_state.board)
+                        ._filter_brute_force(&game_state.board)
                         .moveset
                         .into_iter()
                         .collect();
@@ -240,13 +236,8 @@ fn figure_picking(
 }
 
 fn highlight_tiles(
-    materials: &mut ResMut<'_, Assets<StandardMaterial>>,
-    tile_query: Query<
-        '_,
-        '_,
-        (Entity, &Name, &MeshMaterial3d<StandardMaterial>),
-        With<SurfaceTile>,
-    >,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    tile_query: Query<(Entity, &Name, &MeshMaterial3d<StandardMaterial>), With<SurfaceTile>>,
     move_list_str: Vec<String>,
     tile_mat: &MeshMaterial3d<StandardMaterial>,
 ) {
@@ -276,7 +267,6 @@ fn reset_tile_highlights(
 
 fn set_camera_viewports(
     windows: Query<&Window>,
-    // mut window_resized_reader: MessageReader<WindowResized>,
     mut query: Query<(&CameraPosition, &mut Camera)>,
     settings: Res<GameSettings>,
 ) {

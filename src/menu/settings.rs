@@ -41,7 +41,6 @@ pub struct GameSettings {
     pub player_color: PlayerColor,
     pub game_mode: GameMode,
     pub difficulty: u8,
-    pub timer: bool,
 }
 
 impl Default for GameSettings {
@@ -50,7 +49,6 @@ impl Default for GameSettings {
             player_color: PlayerColor::White,
             game_mode: GameMode::PVE,
             difficulty: 6,
-            timer: false,
         }
     }
 }
@@ -168,15 +166,10 @@ fn settings_menu_action(
                         }
                     }
                 }
-                _ => {
-                    println!("Pressed some unexpected button!");
-                }
             }
         }
     }
 }
-
-//black_camera: Query<Entity, With<BlackCamera>>,
 
 /// Switches between splitscreen and regular based on incoming messages.
 fn switch_screen_mode(

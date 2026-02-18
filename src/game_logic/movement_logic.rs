@@ -1,5 +1,4 @@
 use crate::game_logic::*;
-// use bevy_egui::egui::menu::bar;
 
 use utils::rate_standard_move;
 
@@ -98,7 +97,7 @@ impl MoveBuilder {
     }
 
     /// This methods filter also works in check.
-    pub fn _filter_brute_force_2(mut self, board: &Board) -> Self {
+    pub fn _filter_brute_force(mut self, board: &Board) -> Self {
         match self.fig_type {
             FigType::King => {
                 let enemy_king = board.get_king_position(self.fig_color.other_player());
@@ -123,7 +122,7 @@ impl MoveBuilder {
 }
 
 /// Calculate all moves and perform move ordering of the moves.
-pub fn calculate_all_smarter(board: &Board, player_color: PlayerColor) -> Vec<ChessMove> {
+pub fn calculate_all(board: &Board, player_color: PlayerColor) -> Vec<ChessMove> {
     let king_pos = board.get_king_position(player_color);
     if let Some((threat_r, threat_c, _threat_type)) = board.player_in_check(player_color) {
         let dir_to_threat = Direction::determine_direction_from_to(king_pos, (threat_r, threat_c));
@@ -136,18 +135,17 @@ pub fn calculate_all_smarter(board: &Board, player_color: PlayerColor) -> Vec<Ch
         board
             .get_busy_tiles(player_color)
             .into_iter()
-            // .into_par_iter()
             .map(|p| {
                 if p == king_pos {
                     MoveBuilder::new(p, board)
                         .calculate_naive_moves(board)
-                        ._filter_brute_force_2(board)
+                        ._filter_brute_force(board)
                 } else {
                     // Accelerate a little by using only some
                     MoveBuilder::new(p, board)
                         .calculate_naive_moves(board)
                         .filter_not_in_set(&stopper_tiles)
-                        ._filter_brute_force_2(board)
+                        ._filter_brute_force(board)
                 }
             })
             .flat_map(|x| x.moveset.into_iter())
@@ -178,7 +176,7 @@ pub fn calculate_all_smarter(board: &Board, player_color: PlayerColor) -> Vec<Ch
                         }
                     }
                     // 2. We got the king here, we filter carefully all moves. (For now)
-                    None if p == king_pos => naive_moves._filter_brute_force_2(board),
+                    None if p == king_pos => naive_moves._filter_brute_force(board),
 
                     // 3. fig not in guards, we can move without care
                     None => naive_moves,

@@ -22,8 +22,6 @@ pub enum GuiState {
 enum MenuButtonAction {
     Play,
     Settings,
-    BackToMainMenu,
-    BackToSettings,
     Quit,
 }
 
@@ -47,8 +45,6 @@ fn reset_system(
     mut commands: Commands,
     mut next_state: ResMut<NextState<GuiState>>,
     asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for ent in board_query {
         commands.entity(ent).despawn();
@@ -56,9 +52,6 @@ fn reset_system(
 
     commands.insert_resource(GameState::new());
     commands.insert_resource(minmax_logic::GeneratedMoves::new());
-
-    // let gltf_handle: Handle<Gltf> = asset_server.load("chess_set.glb");
-    // commands.insert_resource(ChessScene(gltf_handle));
 
     let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("chess_set.glb"));
     commands.spawn((
@@ -140,9 +133,6 @@ fn menu_action(
                     gui_state.set(GuiState::InGame);
                 }
                 MenuButtonAction::Settings => gui_state.set(GuiState::SettingsPage),
-                _ => {
-                    println!("Pressed some unexpected button!");
-                }
             }
         }
     }

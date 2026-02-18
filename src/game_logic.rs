@@ -11,7 +11,7 @@ use std::ops::{Index, IndexMut};
 const WHITE_KING_SP: (u8, u8) = (0, 4);
 const BLACK_KING_SP: (u8, u8) = (7, 4);
 
-use crate::game_logic::movement_logic::{ChessMove, MoveType};
+use crate::game_logic::movement_logic::{ChessMove, MoveType, calculate_all};
 use crate::queen_spawner;
 use crate::utils::{self, idx_to_coordinates, pawn_promotion};
 
@@ -529,7 +529,6 @@ impl GameState {
         gltf_meshes: &Res<Assets<GltfMesh>>,
     ) {
         move_asset(to_be_moved, query, chess_move);
-        // ToDo: This may need an update for on passant?
         let mut to_despawn: HashSet<&str> = HashSet::new();
         if let Some(target) = self.board[chess_move.to_tile].take() {
             to_despawn.insert(target.ass_name);
@@ -782,7 +781,7 @@ impl GameState {
 
 fn move_asset(
     asset_name: &str,
-    query: &mut Query<'_, '_, (Entity, &Name, &mut Transform)>,
+    query: &mut Query<(Entity, &Name, &mut Transform)>,
     chess_move: &ChessMove,
 ) {
     let mut ass_pos = HashMap::new();

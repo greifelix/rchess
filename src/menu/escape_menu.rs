@@ -17,7 +17,6 @@ pub fn escape_menu_plugin(app: &mut App) {
             Update,
             (button_render_system, escape_menu_action).run_if(in_state(GuiState::EscapePage)), //menu_action,
         );
-    // .add_systems(Update, escape_system); // Einmal reicht?
 }
 
 fn escape_menu_action(
@@ -35,9 +34,6 @@ fn escape_menu_action(
                 }
                 EscapeButtonAction::Restart => gui_state.set(GuiState::Restart),
                 EscapeButtonAction::BackToMainMenu => gui_state.set(GuiState::StartPage),
-                _ => {
-                    println!("Pressed some unexpected button!");
-                }
             }
         }
     }
