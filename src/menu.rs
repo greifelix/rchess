@@ -126,7 +126,8 @@ fn menu_action(
         if *interaction == Interaction::Pressed {
             match menu_button_action {
                 MenuButtonAction::Quit => {
-                    app_exit_writer.write(AppExit::Success);
+                    // app_exit_writer.write(AppExit::Success);
+                    println!("Quit button is currently fixed; Please quit via closing the window")
                 }
                 MenuButtonAction::Play => {
                     gui_state.set(GuiState::InGame);
@@ -210,7 +211,11 @@ fn menu_setup(mut commands: Commands) {
                     button_node,
                     BackgroundColor(NORMAL_BUTTON),
                     MenuButtonAction::Quit,
-                    children![(Text::new("Quit"), button_text_font, TextColor(TEXT_COLOR),),]
+                    children![(
+                        Text::new("To be Done"),
+                        button_text_font,
+                        TextColor(TEXT_COLOR),
+                    ),]
                 ),
             ]
         )],
