@@ -1,8 +1,10 @@
 pub mod minmax_logic;
 pub mod movement_logic;
 use bevy::gltf::GltfMesh;
-use bevy::{platform::collections::HashMap, prelude::*};
-use bevy_egui::egui::ahash::{HashSet, HashSetExt};
+use bevy::{
+    platform::collections::{HashMap, HashSet},
+    prelude::*,
+};
 use core::panic;
 use itertools::{Itertools, iproduct};
 use std::cmp::Ordering;
@@ -11,7 +13,7 @@ use std::ops::{Index, IndexMut};
 const WHITE_KING_SP: (u8, u8) = (0, 4);
 const BLACK_KING_SP: (u8, u8) = (7, 4);
 
-use crate::game_logic::movement_logic::{ChessMove, MoveType, calculate_all};
+use crate::game_logic::movement_logic::{ChessMove, MoveType};
 use crate::queen_spawner;
 use crate::utils::{self, idx_to_coordinates, pawn_promotion};
 
@@ -467,7 +469,6 @@ impl Board {
         }
     }
     /// Gets tiles until a figure is hit; inlcudes the figure here
-    ///TODO: Rook???
     pub fn get_tiles_until_block(
         &self,
         source_pos: (u8, u8),
