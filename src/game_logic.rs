@@ -5,121 +5,18 @@ use bevy::{
     platform::collections::{HashMap, HashSet},
     prelude::*,
 };
-use core::panic;
 use itertools::{Itertools, iproduct};
-use std::cmp::Ordering;
+
 use std::ops::{Index, IndexMut};
 
 const WHITE_KING_SP: (u8, u8) = (0, 4);
 const BLACK_KING_SP: (u8, u8) = (7, 4);
 
 use crate::game_logic::movement_logic::{ChessMove, MoveType};
-use crate::queen_spawner;
+use crate::utils::type_utils::{ChessScene, Direction, FigType, Figure, PlayerColor};
+
 use crate::utils::{self, idx_to_coordinates, pawn_promotion};
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub enum FigType {
-    Pawn,
-    Rook,
-    Knight,
-    Bishop,
-    Queen,
-    King,
-}
-
-impl FigType {
-    pub fn pins_in_direction(&self, dir: Direction) -> bool {
-        match (*self, dir) {
-            (
-                Self::Bishop | Self::Queen,
-                Direction::AL | Direction::AR | Direction::BL | Direction::BR,
-            ) => true,
-            (
-                Self::Rook | Self::Queen,
-                Direction::A | Direction::B | Direction::L | Direction::R,
-            ) => true,
-            _ => false,
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum PlayerColor {
-    Black,
-    White,
-}
-
-impl PlayerColor {
-    fn other_player(&self) -> PlayerColor {
-        match self {
-            PlayerColor::Black => PlayerColor::White,
-            PlayerColor::White => PlayerColor::Black,
-        }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct Figure {
-    pub fig_type: FigType,
-    pub ass_name: &'static str,
-    pub player_color: PlayerColor,
-}
-/// Right, AboveRight,Above,AboveLeft,Left,BelowLeft,Below,BelowRight
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum Direction {
-    R,
-    AR,
-    A,
-    AL,
-    L,
-    BL,
-    B,
-    BR,
-    Unrelated,
-}
-
-impl Direction {
-    pub fn determine_direction_from_to(source_pos: (u8, u8), target_pos: (u8, u8)) -> Self {
-        match (
-            target_pos.0.cmp(&source_pos.0),
-            target_pos.1.cmp(&source_pos.1),
-        ) {
-            (Ordering::Equal, Ordering::Greater) => Self::R,
-            (Ordering::Equal, Ordering::Less) => Self::L,
-            (Ordering::Greater, Ordering::Equal) => Self::A,
-            (Ordering::Less, Ordering::Equal) => Self::B,
-            (Ordering::Greater, Ordering::Greater) => {
-                if target_pos.0 - source_pos.0 == target_pos.1 - source_pos.1 {
-                    Self::AR
-                } else {
-                    Self::Unrelated
-                }
-            }
-            (Ordering::Less, Ordering::Less) => {
-                if source_pos.0 - target_pos.0 == source_pos.1 - target_pos.1 {
-                    Self::BL
-                } else {
-                    Self::Unrelated
-                }
-            }
-            (Ordering::Greater, Ordering::Less) => {
-                if target_pos.0 - source_pos.0 == source_pos.1 - target_pos.1 {
-                    Self::AL
-                } else {
-                    Self::Unrelated
-                }
-            }
-            (Ordering::Less, Ordering::Greater) => {
-                if source_pos.0 - target_pos.0 == target_pos.1 - source_pos.1 {
-                    Self::BR
-                } else {
-                    Self::Unrelated
-                }
-            }
-            _ => Self::Unrelated,
-        }
-    }
-}
+use utils::board_utils::queen_spawner;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct RochadeTracker {
@@ -525,7 +422,7 @@ impl GameState {
         to_be_moved: &str,
         chess_move: &ChessMove,
         query: &mut Query<(Entity, &Name, &mut Transform)>,
-        chess_scene: &Res<crate::ChessScene>,
+        chess_scene: &Res<ChessScene>,
         gltf_assets: &Res<Assets<Gltf>>,
         gltf_meshes: &Res<Assets<GltfMesh>>,
     ) {

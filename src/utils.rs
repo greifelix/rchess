@@ -1,6 +1,10 @@
+pub mod board_utils;
+pub mod picking_utils;
+pub mod setup_utils;
+pub mod type_utils;
 use bevy::{platform::collections::HashSet, prelude::*};
+use type_utils::*;
 
-use crate::game_logic::{FigType, Figure, PlayerColor};
 pub fn tile_to_indices(tile_name: &str) -> (u8, u8) {
     let sub_strings: Vec<&str> = tile_name.split_terminator('_').collect();
     (
@@ -18,7 +22,7 @@ pub fn idx_to_coordinates(row: u8, col: u8) -> (f32, f32) {
     (row_offset, col_offset)
 }
 
-/// Figs are direct neighbots, horizontally, vertically or diagonal
+/// Figs are direct neighbours, horizontally, vertically or diagonal
 pub fn figs_adjacent(f1: (u8, u8), f2: (u8, u8)) -> bool {
     (f1.0.abs_diff(f2.0)) < 2 && (f1.1.abs_diff(f2.1) < 2)
 }

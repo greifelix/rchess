@@ -3,11 +3,8 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{
-    BlackCamera, WhiteCamera,
-    game_logic::PlayerColor,
-    menu::{SelectedColor, SelectedDifficulty, SelectedMode},
-};
+use crate::menu::{SelectedColor, SelectedDifficulty, SelectedMode};
+use crate::utils::type_utils::{BlackCamera, CameraPosition, PlayerColor, WhiteCamera};
 
 use super::{GuiState, NORMAL_BUTTON, Selected, TEXT_COLOR, button_render_system};
 use bevy::color::palettes::css::BURLYWOOD;
@@ -198,7 +195,7 @@ fn switch_screen_mode(
                     order: 0,
                     ..default()
                 },
-                crate::CameraPosition {
+                CameraPosition {
                     pos: UVec2::new(0, 0),
                 },
                 MeshPickingCamera,
@@ -213,7 +210,7 @@ fn switch_screen_mode(
                     order: 0,
                     ..default()
                 },
-                crate::CameraPosition {
+                CameraPosition {
                     pos: UVec2::new(0, 0),
                 },
                 MeshPickingCamera,
@@ -228,7 +225,7 @@ fn switch_screen_mode(
                     order: 0,
                     ..default()
                 },
-                crate::CameraPosition {
+                CameraPosition {
                     pos: UVec2::new(0, 0),
                 },
                 MeshPickingCamera,
@@ -242,7 +239,7 @@ fn switch_screen_mode(
                     order: 1,
                     ..default()
                 },
-                crate::CameraPosition {
+                CameraPosition {
                     pos: UVec2::new(1, 0),
                 },
                 MeshPickingCamera,

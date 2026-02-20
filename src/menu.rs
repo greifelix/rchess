@@ -2,8 +2,8 @@ pub mod escape_menu;
 pub mod settings;
 use bevy::prelude::*;
 
-use crate::WoodenPiece;
 use crate::game_logic::{GameState, minmax_logic};
+use crate::utils::type_utils::WoodenPiece;
 
 // UI-State of the game
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
@@ -25,7 +25,6 @@ enum MenuButtonAction {
     Quit,
 }
 
-// General Selected
 #[derive(Component)]
 struct Selected;
 

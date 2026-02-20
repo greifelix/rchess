@@ -79,7 +79,6 @@ impl MoveBuilder {
     /// Still a todo??: Achtung: König darf natürlich woanders hin
     pub fn filter_not_in_set(mut self, filter_set: &HashSet<(u8, u8)>) -> MoveBuilder {
         self.moveset.retain(|mv| filter_set.contains(&mv.to_tile));
-
         self
     }
 

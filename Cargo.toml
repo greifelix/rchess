@@ -5,10 +5,8 @@ edition = "2024"
 
 [dependencies]
 bevy = "0.18.0"
-bevy-inspector-egui = "0.32.0"
-bevy_egui = "0.35.1"
+
 itertools = "0.14.0"
-rayon = "1.11.0"
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]
@@ -20,3 +18,8 @@ opt-level = 3
 
 [features]
 # default = ["bevy_mesh_picking_backend"]
+
+
+# bevy-inspector-egui = "0.32.0"
+# bevy_egui = "0.35.1"
+# rayon = "1.11.0"

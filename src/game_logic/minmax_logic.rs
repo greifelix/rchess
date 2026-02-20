@@ -7,6 +7,7 @@ use bevy::{
 };
 
 use crate::menu::{GuiState, settings::GameMode};
+use crate::utils::type_utils::ChessScene;
 use crate::{
     game_logic::{
         Board, FigType, GameState, PlayerColor,
@@ -110,7 +111,7 @@ pub fn retrieve_and_exec_minmax_result(
     mut minmax_moves: ResMut<GeneratedMoves>,
     mut game_state: ResMut<GameState>,
     mut piece_query: Query<(Entity, &Name, &mut Transform)>,
-    chess_scene: Res<crate::ChessScene>,
+    chess_scene: Res<ChessScene>,
     gltf_assets: Res<Assets<Gltf>>,
     gltf_meshes: Res<Assets<GltfMesh>>,
 ) {
