@@ -10,8 +10,9 @@ I did not look into it to much, cause I mainly wanted to have fun with my own id
 ## Notes:
 
 - Click the tiles under the figures, currently only those are pickable
-- The hard difficulty will take extremely long as my minmax implementation /move ordering is pretty bad. I plan to improve it in the future. I recommond by trying the medium difficulty
-- I probably made some terrible descision in my move generation logic and in the structure :D
+- The hard difficulty will take extremely long as my minmax implementation /move ordering is pretty bad. I plan to improve it in the future. I recommend by trying the medium difficulty
+- I probably made some terrible descision in my move generation logic and in the structure :D But hey, at least maybe it is something new :D
+- For quitting the game, close the window. I had some problems with the App Exit Writer.
 
 ## How to run
 
