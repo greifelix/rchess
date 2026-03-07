@@ -43,10 +43,10 @@ pub fn board_setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let gltf_handle: Handle<Gltf> = asset_server.load("chess_set.glb");
+    let gltf_handle: Handle<Gltf> = asset_server.load("chess_set.gltf");
     commands.insert_resource(ChessScene(gltf_handle));
 
-    let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("chess_set.glb"));
+    let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("chess_set.gltf"));
     commands.spawn((
         Transform::from_xyz(0.0, 0.0, 0.0),
         SceneRoot(scene_handle),

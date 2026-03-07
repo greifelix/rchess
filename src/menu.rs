@@ -52,7 +52,7 @@ fn reset_system(
     commands.insert_resource(GameState::new());
     commands.insert_resource(minmax_logic::GeneratedMoves::new());
 
-    let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("chess_set.glb"));
+    let scene_handle = asset_server.load(GltfAssetLabel::Scene(0).from_asset("chess_set.gltf"));
     commands.spawn((
         Transform::from_xyz(0.0, 0.0, 0.0),
         SceneRoot(scene_handle),
