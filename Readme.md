@@ -6,6 +6,12 @@ I do this just for fun- do not expect quality code here :D
 There is also a real chess-rust engine out there, which is probably pretty good!
 I did not look into it to much, cause I mainly wanted to have fun with my own ideas.
 
+## Singleplayer mode (vs MinMax with Alpha Beta Pruning)
+![SinglePlayer](docs/Rchess_SinglePlayer.png)
+
+## Local Multiplayer - Splitscreen Mode
+![MultiPlayer](docs/Rchess_MultiPlayer.png)
+
 
 ## Bevy concepts I tried out here which might help you in your first game
 
