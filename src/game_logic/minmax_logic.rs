@@ -1,21 +1,19 @@
-use std::i16;
-
-use bevy::{
-    gltf::GltfMesh,
-    prelude::*,
-    tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future},
-};
-
-use crate::menu::{GuiState, settings::GameMode};
-use crate::utils::type_utils::ChessScene;
 use crate::{
     game_logic::{
         Board, FigType, GameState, PlayerColor,
         movement_logic::{self, ChessMove},
     },
     menu::settings::GameSettings,
+    menu::{GuiState, settings::GameMode},
+    utils::core_types::ChessScene,
 };
-use bevy::platform::collections::HashMap;
+use bevy::{
+    gltf::GltfMesh,
+    platform::collections::HashMap,
+    prelude::*,
+    tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future},
+};
+use std::i16;
 
 pub fn player_vs_minmax_plugin(app: &mut App) {
     app.add_systems(

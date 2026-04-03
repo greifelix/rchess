@@ -1,9 +1,9 @@
 pub mod board_utils;
 pub mod picking_utils;
 pub mod setup_utils;
-pub mod type_utils;
+pub mod core_types;
 use bevy::{platform::collections::HashSet, prelude::*};
-use type_utils::*;
+use core_types::*;
 
 pub fn tile_to_indices(tile_name: &str) -> (u8, u8) {
     let sub_strings: Vec<&str> = tile_name.split_terminator('_').collect();

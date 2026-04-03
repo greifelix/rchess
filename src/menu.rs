@@ -3,7 +3,7 @@ pub mod settings;
 use bevy::prelude::*;
 
 use crate::game_logic::{GameState, minmax_logic};
-use crate::utils::type_utils::WoodenPiece;
+use crate::utils::core_types::WoodenPiece;
 
 // UI-State of the game
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]

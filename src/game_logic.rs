@@ -1,7 +1,8 @@
 pub mod minmax_logic;
 pub mod movement_logic;
-use bevy::gltf::GltfMesh;
+
 use bevy::{
+    gltf::GltfMesh,
     platform::collections::{HashMap, HashSet},
     prelude::*,
 };
@@ -13,10 +14,12 @@ const WHITE_KING_SP: (u8, u8) = (0, 4);
 const BLACK_KING_SP: (u8, u8) = (7, 4);
 
 use crate::game_logic::movement_logic::{ChessMove, MoveType};
-use crate::utils::type_utils::{ChessScene, Direction, FigType, Figure, PlayerColor};
 
-use crate::utils::{self, idx_to_coordinates, pawn_promotion};
-use utils::board_utils::queen_spawner;
+use crate::utils::{
+    board_utils::queen_spawner,
+    core_types::{ChessScene, Direction, FigType, Figure, LogicalFigure, PlayerColor},
+    figs_adjacent, idx_to_coordinates, knights_reach, pawn_promotion,
+};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct RochadeTracker {
@@ -83,8 +86,8 @@ impl RochadeTracker {
         let other_king = board.get_king_position(self.player.other_player());
         match dir {
             Direction::L => {
-                !utils::figs_adjacent((k_start.0, k_start.1 - 1), other_king)
-                    && !utils::figs_adjacent((k_start.0, k_start.1 - 2), other_king)
+                !figs_adjacent((k_start.0, k_start.1 - 1), other_king)
+                    && !figs_adjacent((k_start.0, k_start.1 - 2), other_king)
                     && board.player_in_check(self.player).is_none()
                     && {
                         board[(k_start.0, k_start.1 - 1)] = board[k_start].take();
@@ -97,8 +100,8 @@ impl RochadeTracker {
                     }
             }
             Direction::R => {
-                !utils::figs_adjacent((k_start.0, k_start.1 + 1), other_king)
-                    && !utils::figs_adjacent((k_start.0, k_start.1 + 2), other_king)
+                !figs_adjacent((k_start.0, k_start.1 + 1), other_king)
+                    && !figs_adjacent((k_start.0, k_start.1 + 2), other_king)
                     && board.player_in_check(self.player).is_none()
                     && {
                         board[(k_start.0, k_start.1 + 1)] = board[k_start].take();
@@ -142,6 +145,13 @@ impl RochadeTracker {
         };
     }
 }
+
+pub struct LogicalBoard(
+    [[Option<LogicalFigure>; 8]; 8],
+    RochadeTracker,
+    RochadeTracker,
+    Option<ChessMove>,
+);
 
 /// Board contains all information for calculation of all possible moves (for both players)
 #[derive(Clone, PartialEq, Eq)]
@@ -286,7 +296,7 @@ impl Board {
                 None => (),
             }
         });
-        utils::knights_reach(king_pos)
+        knights_reach(king_pos)
             .into_iter()
             .for_each(|p| match self[p] {
                 Some(fig)
@@ -443,7 +453,7 @@ impl GameState {
             let color = self.board[chess_move.from_tile].unwrap().player_color;
             let pawn_ass_name = self.board[chess_move.from_tile].unwrap().ass_name;
 
-            let ass_name = utils::pawn_promotion(pawn_ass_name, color).ass_name;
+            let ass_name = pawn_promotion(pawn_ass_name, color).ass_name;
 
             to_despawn.insert(pawn_ass_name);
             queen_spawner(

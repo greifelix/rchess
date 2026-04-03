@@ -1,6 +1,9 @@
-use crate::game_logic::*;
+use crate::{
+    game_logic::*,
+    utils::{rate_promotion, rate_standard_move},
+};
+
 use bevy::platform::collections::HashSet;
-use utils::rate_standard_move;
 
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub enum MoveType {
@@ -104,7 +107,7 @@ impl MoveBuilder {
                     let mut board_clone = board.clone();
                     board_clone[cm.to_tile] = board_clone[self.fig_pos].take();
                     board_clone.player_in_check(self.fig_color).is_none()
-                        && !utils::figs_adjacent(cm.to_tile, enemy_king)
+                        && !figs_adjacent(cm.to_tile, enemy_king)
                 });
             }
             _ => {
@@ -248,7 +251,7 @@ pub fn white_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
     let (r, c) = ((from_row + 1).min(7), from_col);
     if board[(r, c)].is_none() {
         let (move_type, rating) = if r == 7 {
-            (MoveType::Promoting, utils::rate_promotion())
+            (MoveType::Promoting, rate_promotion())
         } else {
             (MoveType::Norm, rate_standard_move(FigType::Pawn, None))
         };
@@ -273,7 +276,7 @@ pub fn white_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
             let (move_type, rating) = if r == 7 {
                 (
                     MoveType::Promoting,
-                    utils::rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                    rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
                 )
             } else {
                 (
@@ -293,7 +296,7 @@ pub fn white_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
             let (move_type, rating) = if r == 7 {
                 (
                     MoveType::Promoting,
-                    utils::rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                    rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
                 )
             } else {
                 (
@@ -333,7 +336,7 @@ pub fn black_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
     let (r, c) = (from_row.saturating_sub(1), from_col);
     if board[(r, c)].is_none() {
         let (move_type, rating) = if r == 0 {
-            (MoveType::Promoting, utils::rate_promotion())
+            (MoveType::Promoting, rate_promotion())
         } else {
             (MoveType::Norm, rate_standard_move(FigType::Pawn, None))
         };
@@ -358,7 +361,7 @@ pub fn black_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
             let (move_type, rating) = if r == 0 {
                 (
                     MoveType::Promoting,
-                    utils::rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                    rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
                 )
             } else {
                 (
@@ -378,7 +381,7 @@ pub fn black_pawn_moves(board: &Board, from_tile: (u8, u8)) -> HashSet<ChessMove
             let (move_type, rating) = if r == 0 {
                 (
                     MoveType::Promoting,
-                    utils::rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
+                    rate_promotion() + rate_standard_move(FigType::Pawn, Some(f.fig_type)),
                 )
             } else {
                 (

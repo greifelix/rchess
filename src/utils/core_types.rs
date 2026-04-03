@@ -70,6 +70,22 @@ pub struct Figure {
     pub ass_name: &'static str,
     pub player_color: PlayerColor,
 }
+
+#[derive(Copy, Clone)]
+pub struct LogicalFigure {
+    pub fig_type: FigType,
+    pub player_color: PlayerColor,
+}
+
+impl From<Figure> for LogicalFigure {
+    fn from(figure: Figure) -> Self {
+        LogicalFigure {
+            fig_type: figure.fig_type,
+            player_color: figure.player_color,
+        }
+    }
+}
+
 /// Right, AboveRight,Above,AboveLeft,Left,BelowLeft,Below,BelowRight
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Direction {
