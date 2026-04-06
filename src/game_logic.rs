@@ -1,6 +1,6 @@
+pub mod game_heuristics;
 pub mod minmax_logic;
 pub mod movement_logic;
-
 use bevy::{
     gltf::GltfMesh,
     platform::collections::{HashMap, HashSet},
@@ -17,7 +17,10 @@ use crate::game_logic::movement_logic::{ChessMove, MoveType};
 
 use crate::utils::{
     board_utils::queen_spawner,
-    core_types::{ChessScene, Direction, FigType, Figure, LogicalFigure, PlayerColor},
+    core_types::{
+        ChessScene, DIAG_THREATS, Direction, FigType, Figure, LogicalFigure, PlayerColor,
+        RANK_THREATS, STRAIGHT_DIRECTIONS,
+    },
     figs_adjacent, idx_to_coordinates, knights_reach, pawn_promotion,
 };
 
@@ -88,29 +91,29 @@ impl RochadeTracker {
             Direction::L => {
                 !figs_adjacent((k_start.0, k_start.1 - 1), other_king)
                     && !figs_adjacent((k_start.0, k_start.1 - 2), other_king)
-                    && board.player_in_check(self.player).is_none()
+                    && !board.player_in_check(self.player)
                     && {
                         board[(k_start.0, k_start.1 - 1)] = board[k_start].take();
-                        board.player_in_check(self.player).is_none()
+                        !board.player_in_check(self.player)
                     }
                     && {
                         board[(k_start.0, k_start.1 - 2)] =
                             board[(k_start.0, k_start.1 - 1)].take();
-                        board.player_in_check(self.player).is_none()
+                        !board.player_in_check(self.player)
                     }
             }
             Direction::R => {
                 !figs_adjacent((k_start.0, k_start.1 + 1), other_king)
                     && !figs_adjacent((k_start.0, k_start.1 + 2), other_king)
-                    && board.player_in_check(self.player).is_none()
+                    && !board.player_in_check(self.player)
                     && {
                         board[(k_start.0, k_start.1 + 1)] = board[k_start].take();
-                        board.player_in_check(self.player).is_none()
+                        !board.player_in_check(self.player)
                     }
                     && {
                         board[(k_start.0, k_start.1 + 2)] =
                             board[(k_start.0, k_start.1 + 1)].take();
-                        board.player_in_check(self.player).is_none()
+                        !board.player_in_check(self.player)
                     }
             }
             _ => panic!("Rochade path called with unexpected direction"),
@@ -244,113 +247,86 @@ impl Board {
         &self,
         king_color: PlayerColor,
         king_pos: (u8, u8),
-    ) -> HashMap<(u8, u8), (Direction, FigType)> {
-        let mut out: HashMap<(u8, u8), (Direction, FigType)> = HashMap::new();
-        let dirs = [
-            Direction::R,
-            Direction::AR,
-            Direction::A,
-            Direction::AL,
-            Direction::L,
-            Direction::BL,
-            Direction::B,
-            Direction::BR,
-        ];
-        dirs.into_iter().for_each(|dir| {
-            match self.get_first_fig_in_direction(king_pos, dir, (1, 7)) {
-                Some((f, r, c)) => {
-                    if f.player_color == king_color {
-                        out.insert((r, c), (dir, f.fig_type));
-                    }
-                }
-                None => (),
-            }
-        });
-
-        out
+    ) -> HashMap<(u8, u8), Direction> {
+        STRAIGHT_DIRECTIONS
+            .into_iter()
+            .filter_map(
+                |dir| match self.get_first_fig_in_direction(king_pos, dir, (1, 7)) {
+                    Some((fig, r, c)) if fig.player_color == king_color => Some(((r, c), dir)),
+                    _ => None,
+                },
+            )
+            .collect()
     }
 
-    pub fn king_enemy_circle(
-        &self,
-        king_color: PlayerColor,
-        king_pos: (u8, u8),
-    ) -> HashMap<(u8, u8), (Direction, FigType)> {
-        let mut out: HashMap<(u8, u8), (Direction, FigType)> = HashMap::new();
-        let dirs = [
-            Direction::R,
-            Direction::AR,
-            Direction::A,
-            Direction::AL,
-            Direction::L,
-            Direction::BL,
-            Direction::B,
-            Direction::BR,
-        ];
-        dirs.into_iter().for_each(|dir| {
-            match self.get_first_fig_in_direction(king_pos, dir, (0, 8)) {
-                Some((f, r, c)) => {
-                    if f.player_color == king_color.other_player() {
-                        out.insert((r, c), (dir, f.fig_type));
+    pub fn player_in_check(&self, king_color: PlayerColor) -> bool {
+        let king_pos = self.get_king_position(king_color);
+        // Check the first enemy figure in straight directions
+        STRAIGHT_DIRECTIONS
+            .into_iter()
+            .filter_map(
+                |dir| match self.get_first_fig_in_direction(king_pos, dir, (0, 8)) {
+                    Some((f, r, c)) => {
+                        if f.player_color == king_color.other_player() {
+                            Some(((r, c), (dir, f.fig_type)))
+                        } else {
+                            None
+                        }
                     }
-                }
-                None => (),
-            }
-        });
-        knights_reach(king_pos)
-            .into_iter()
-            .for_each(|p| match self[p] {
-                Some(fig)
-                    if fig.fig_type == FigType::Knight
-                        && fig.player_color == king_color.other_player() =>
-                {
-                    out.insert(p, (Direction::Unrelated, FigType::Knight));
-                }
-                Some(_) => (),
-                None => (),
-            });
-
-        out
-    }
-
-    /// Checks if the player is in check, if yes it returns the enemy-figure causing the check.
-    /// (This method can only handle legal board positions,e.g. adjacent kings can not be checked)
-    pub fn player_in_check(&self, player: PlayerColor) -> Option<(u8, u8, FigType)> {
-        let my_king_pos = self.get_king_position(player);
-        let rank_threats = [FigType::Rook, FigType::Queen];
-        let diag_threats = [FigType::Bishop, FigType::Queen];
-
-        self.king_enemy_circle(player, my_king_pos)
-            .into_iter()
+                    None => None,
+                },
+            )
+            .chain(
+                knights_reach(king_pos)
+                    .into_iter()
+                    .filter_map(|(r, c)| match self[(r, c)] {
+                        Some(fig) => {
+                            if fig.player_color == king_color.other_player() {
+                                Some(((r, c), (Direction::S1D1, fig.fig_type)))
+                            } else {
+                                None
+                            }
+                        }
+                        None => None,
+                    }),
+            )
             .find_map(|((r, c), (dir, fig_type))| match dir {
-                Direction::Unrelated => Some((r, c, fig_type)), // In this case we have a knight!
+                Direction::Unrelated => None,
+                Direction::S1D1 => {
+                    if fig_type == FigType::Knight {
+                        Some(())
+                    } else {
+                        None
+                    }
+                }
                 Direction::R | Direction::A | Direction::L | Direction::B => {
-                    if rank_threats.contains(&fig_type) {
-                        Some((r, c, fig_type))
+                    if RANK_THREATS.contains(&fig_type) {
+                        Some(())
                     } else {
                         None
                     }
                 }
                 Direction::AR | Direction::AL | Direction::BL | Direction::BR => {
-                    if diag_threats.contains(&fig_type)
+                    if DIAG_THREATS.contains(&fig_type)
                         || match fig_type {
                             FigType::Pawn => movement_logic::MoveBuilder::new((r, c), &self)
                                 .calculate_naive_moves(&self)
                                 .moveset
                                 .iter()
-                                .any(|x| x.to_tile == my_king_pos),
-                            // .contains(&my_king_pos),
+                                .any(|x| x.to_tile == king_pos),
                             _ => false,
                         }
                     {
-                        Some((r, c, fig_type))
+                        Some(())
                     } else {
                         None
                     }
                 }
             })
+            .is_some()
     }
 
-    /// Get tiles in direction starting at source pos (exclusive) in the given direction.
+    /// Get tiles in direction starting at source pos (exclusive) in the given straight direction.
     /// Lower bound is inclusive, higher bound is exclusive!
     /// Low bound is used for the left and lower borders, right bound for right and upper!
     pub fn get_tiles_in_direction(
@@ -372,11 +348,11 @@ impl Board {
             Direction::BL => Box::new((b_low..source_row).rev().zip((b_low..source_col).rev())),
             Direction::B => Box::new((b_low..source_row).rev().map(move |r| (r, source_col))), //change to rev?
             Direction::BR => Box::new((b_low..source_row).rev().zip(source_col + 1..b_high)),
-            Direction::Unrelated => Box::new([].into_iter()),
+            _ => Box::new([].into_iter()),
         }
     }
-    /// Gets tiles until a figure is hit; inlcudes the figure here
-    pub fn get_tiles_until_block(
+    /// Gets tiles in a straight direction until a figure is hit; inlcudes the figure pos here
+    pub fn _get_tiles_until_block(
         &self,
         source_pos: (u8, u8),
         direction: Direction,

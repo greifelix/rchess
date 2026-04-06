@@ -12,7 +12,7 @@ pub enum GuiState {
     StartPage,
     EscapePage,
     SettingsPage,
-    GameOver,
+    _GameOver,
     InGame,
     Restart,
 }
@@ -75,7 +75,7 @@ fn escape_system(
             GuiState::SettingsPage => next_state.set(GuiState::StartPage),
             GuiState::StartPage => (),
             GuiState::Restart => (),
-            GuiState::GameOver => next_state.set(GuiState::InGame),
+            GuiState::_GameOver => next_state.set(GuiState::InGame),
         }
     }
 }
@@ -119,7 +119,7 @@ fn menu_action(
         (&Interaction, &MenuButtonAction),
         (Changed<Interaction>, With<Button>),
     >,
-    mut app_exit_writer: MessageWriter<AppExit>,
+    mut _app_exit_writer: MessageWriter<AppExit>,
     mut gui_state: ResMut<NextState<GuiState>>,
 ) {
     for (interaction, menu_button_action) in &interaction_query {

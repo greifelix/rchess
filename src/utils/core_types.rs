@@ -86,7 +86,7 @@ impl From<Figure> for LogicalFigure {
     }
 }
 
-/// Right, AboveRight,Above,AboveLeft,Left,BelowLeft,Below,BelowRight
+/// Right, AboveRight,Above,AboveLeft,Left,BelowLeft,Below,BelowRight, Straight1Diag1
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Direction {
     R,
@@ -97,11 +97,28 @@ pub enum Direction {
     BL,
     B,
     BR,
+    S1D1,
     Unrelated,
 }
 
+pub const STRAIGHT_DIRECTIONS: [Direction; 8] = [
+    Direction::R,
+    Direction::AR,
+    Direction::A,
+    Direction::AL,
+    Direction::L,
+    Direction::BL,
+    Direction::B,
+    Direction::BR,
+];
+
+pub const RANK_THREATS: [FigType; 2] = [FigType::Rook, FigType::Queen];
+pub const DIAG_THREATS: [FigType; 2] = [FigType::Bishop, FigType::Queen];
+
 impl Direction {
-    pub fn determine_direction_from_to(source_pos: (u8, u8), target_pos: (u8, u8)) -> Self {
+    /// Determines the targets_pos position relative to the source_position.
+    /// (i.e. if target position is right of source position: Direction::R is returned)
+    pub fn determine_relative_position(source_pos: (u8, u8), target_pos: (u8, u8)) -> Self {
         match (
             target_pos.0.cmp(&source_pos.0),
             target_pos.1.cmp(&source_pos.1),
@@ -138,7 +155,17 @@ impl Direction {
                     Self::Unrelated
                 }
             }
-            _ => Self::Unrelated,
+            _ => {
+                if (source_pos.0.abs_diff(target_pos.0) == 2
+                    && source_pos.1.abs_diff(target_pos.1) == 1)
+                    || (source_pos.1.abs_diff(target_pos.1) == 2
+                        && source_pos.0.abs_diff(target_pos.0) == 1)
+                {
+                    Self::S1D1
+                } else {
+                    Self::Unrelated
+                }
+            }
         }
     }
 }

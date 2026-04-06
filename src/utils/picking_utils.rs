@@ -56,7 +56,7 @@ pub fn figure_picking(
                 let mut movelist: Vec<ChessMove> =
                     MoveBuilder::new(clicked_tile, &game_state.board)
                         .calculate_naive_moves(&game_state.board)
-                        ._filter_brute_force(&game_state.board)
+                        .filter_brute_force(&game_state.board)
                         .moveset
                         .into_iter()
                         .collect();

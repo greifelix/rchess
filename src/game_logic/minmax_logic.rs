@@ -1,6 +1,7 @@
 use crate::{
     game_logic::{
-        Board, FigType, GameState, PlayerColor,
+        Board, GameState, PlayerColor,
+        game_heuristics::evaluate_board,
         movement_logic::{self, ChessMove},
     },
     menu::settings::GameSettings,
@@ -53,35 +54,7 @@ impl GeneratedMoves {
     }
 }
 
-pub fn evaluate_board(board: &Board, maximizer: &PlayerColor) -> i16 {
-    board
-        .0
-        .iter()
-        .flatten()
-        .map(|maybe_fig| {
-            if let Some(fig) = maybe_fig {
-                let score = match fig.fig_type {
-                    FigType::Pawn => 1,
-                    FigType::Rook => 5,
-                    FigType::Queen => 8,
-                    FigType::Bishop => 3,
-                    FigType::Knight => 3,
-                    FigType::King => 0, // King does not matter as it is never hit
-                };
-
-                if fig.player_color == *maximizer {
-                    score
-                } else {
-                    -score
-                }
-            } else {
-                0
-            }
-        })
-        .sum()
-}
-
-/// Spawns an asynchronous task to find a move for the black player, in case there is not one spawned yet
+/// Spawns an asynchronous task to find a move for the enemy player, in case there is not one spawned yet
 pub fn spawn_minmax_task(
     game_state: Res<GameState>,
     mut minmax_moves: ResMut<GeneratedMoves>,
@@ -134,7 +107,7 @@ pub fn retrieve_and_exec_minmax_result(
 }
 
 pub fn mmax(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16) -> MinMaxData {
-    let maxplayer_moves = movement_logic::calculate_all(board, player);
+    let maxplayer_moves = movement_logic::calculate_all_moves(board, player);
 
     let num_moves_left = maxplayer_moves.len();
     let mut max_value = alpha;
@@ -184,7 +157,7 @@ pub fn mmax(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16
 }
 
 pub fn mmin(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16) -> i16 {
-    let minplayer_moves = movement_logic::calculate_all(board, player);
+    let minplayer_moves = movement_logic::calculate_all_moves(board, player);
     let num_moves_left = minplayer_moves.len();
 
     let mut min_value = beta;
