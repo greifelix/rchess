@@ -1,12 +1,13 @@
 use crate::{
     game_logic::{
-        Board, GameState, PlayerColor,
+        board_logic::Board,
         game_heuristics::evaluate_board,
         movement_logic::{self, ChessMove},
+        state_logic::GameState,
     },
     menu::settings::GameSettings,
     menu::{GuiState, settings::GameMode},
-    utils::core_types::ChessScene,
+    utils::core_types::{ChessScene, PlayerColor},
 };
 use bevy::{
     gltf::GltfMesh,
@@ -67,7 +68,7 @@ pub fn spawn_minmax_task(
     {
         let task_pool = AsyncComputeTaskPool::get();
         let max_depth = game_settings.difficulty;
-        let board = game_state.board.clone();
+        let board = game_state.fat_board.board.clone();
         let task = task_pool.spawn(async move {
             let found_move = mmax(maximizer, max_depth, &board, i16::MIN, i16::MAX);
             found_move.max_move
@@ -91,7 +92,7 @@ pub fn retrieve_and_exec_minmax_result(
 
         if let Some(max_move) = status.flatten() {
             let (from_row, from_col) = max_move.from_tile;
-            let ass_name = game_state.board[(from_row, from_col)].unwrap().ass_name;
+            let ass_name = game_state.fat_board[(from_row, from_col)].unwrap();
 
             game_state.execute_move(
                 &mut commands,

@@ -1,6 +1,7 @@
-use crate::utils::core_types::FigType;
+use crate::utils::core_types::{FigType, PlayerColor};
 
-use crate::game_logic::{Board, PlayerColor};
+use crate::game_logic::board_logic::Board;
+
 // Board evaluation
 pub fn evaluate_board(board: &Board, maximizer: &PlayerColor) -> i16 {
     board

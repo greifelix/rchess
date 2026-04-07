@@ -1,5 +1,8 @@
-/// Shall have common types
+/// Shall have common types and constants.
 use bevy::prelude::*;
+
+pub const WHITE_KING_SP: (u8, u8) = (0, 4);
+pub const BLACK_KING_SP: (u8, u8) = (7, 4);
 
 #[derive(Component)]
 pub struct CameraPosition {
@@ -67,23 +70,7 @@ impl FigType {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Figure {
     pub fig_type: FigType,
-    pub ass_name: &'static str,
     pub player_color: PlayerColor,
-}
-
-#[derive(Copy, Clone)]
-pub struct LogicalFigure {
-    pub fig_type: FigType,
-    pub player_color: PlayerColor,
-}
-
-impl From<Figure> for LogicalFigure {
-    fn from(figure: Figure) -> Self {
-        LogicalFigure {
-            fig_type: figure.fig_type,
-            player_color: figure.player_color,
-        }
-    }
 }
 
 /// Right, AboveRight,Above,AboveLeft,Left,BelowLeft,Below,BelowRight, Straight1Diag1
@@ -169,3 +156,74 @@ impl Direction {
         }
     }
 }
+
+pub const WHITE_PIECES: [Option<Figure>; 8] = [
+    Some(Figure {
+        fig_type: FigType::Rook,
+        player_color: PlayerColor::White,
+    }),
+    Some(Figure {
+        fig_type: FigType::Knight,
+
+        player_color: PlayerColor::White,
+    }),
+    Some(Figure {
+        fig_type: FigType::Bishop,
+        player_color: PlayerColor::White,
+    }),
+    Some(Figure {
+        fig_type: FigType::Queen,
+        player_color: PlayerColor::White,
+    }),
+    Some(Figure {
+        fig_type: FigType::King,
+        player_color: PlayerColor::White,
+    }),
+    Some(Figure {
+        fig_type: FigType::Bishop,
+        player_color: PlayerColor::White,
+    }),
+    Some(Figure {
+        fig_type: FigType::Knight,
+        player_color: PlayerColor::White,
+    }),
+    Some(Figure {
+        fig_type: FigType::Rook,
+        player_color: PlayerColor::White,
+    }),
+];
+
+pub const BLACK_PIECES: [Option<Figure>; 8] = [
+    Some(Figure {
+        fig_type: FigType::Rook,
+        player_color: PlayerColor::Black,
+    }),
+    Some(Figure {
+        fig_type: FigType::Knight,
+        player_color: PlayerColor::Black,
+    }),
+    Some(Figure {
+        fig_type: FigType::Bishop,
+        player_color: PlayerColor::Black,
+    }),
+    Some(Figure {
+        fig_type: FigType::Queen,
+        player_color: PlayerColor::Black,
+    }),
+    Some(Figure {
+        fig_type: FigType::King,
+        player_color: PlayerColor::Black,
+    }),
+    Some(Figure {
+        fig_type: FigType::Bishop,
+        player_color: PlayerColor::Black,
+    }),
+    Some(Figure {
+        fig_type: FigType::Knight,
+        player_color: PlayerColor::Black,
+    }),
+    Some(Figure {
+        fig_type: FigType::Rook,
+        player_color: PlayerColor::Black,
+    }),
+];

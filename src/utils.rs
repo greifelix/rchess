@@ -70,7 +70,7 @@ pub fn knights_reach(from_pos: (u8, u8)) -> HashSet<(u8, u8)> {
     cands
 }
 
-pub fn pawn_promotion(pawn_name: &str, player_color: PlayerColor) -> Figure {
+pub fn pawn_promotion(pawn_name: &str, player_color: PlayerColor) -> &str {
     match player_color {
         PlayerColor::Black => _black_promotion(pawn_name),
         PlayerColor::White => _white_promotion(pawn_name),
@@ -78,95 +78,31 @@ pub fn pawn_promotion(pawn_name: &str, player_color: PlayerColor) -> Figure {
 }
 
 /// Workaround which works with static strings
-pub fn _white_promotion(pawn_name: &str) -> Figure {
+pub fn _white_promotion(pawn_name: &str) -> &str {
     match pawn_name {
-        "Pawn a2" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen a2",
-            player_color: PlayerColor::White,
-        },
-        "Pawn b2" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen b2",
-            player_color: PlayerColor::White,
-        },
-        "Pawn c2" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen c2",
-            player_color: PlayerColor::White,
-        },
-        "Pawn d2" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen d2",
-            player_color: PlayerColor::White,
-        },
-        "Pawn e2" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen e2",
-            player_color: PlayerColor::White,
-        },
-        "Pawn f2" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen f2",
-            player_color: PlayerColor::White,
-        },
-        "Pawn g2" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen g2",
-            player_color: PlayerColor::White,
-        },
-        "Pawn h2" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen h2",
-            player_color: PlayerColor::White,
-        },
+        "Pawn a2" => "Queen a2",
+        "Pawn b2" => "Queen b2",
+        "Pawn c2" => "Queen c2",
+        "Pawn d2" => "Queen d2",
+        "Pawn e2" => "Queen e2",
+        "Pawn f2" => "Queen f2",
+        "Pawn g2" => "Queen g2",
+        "Pawn h2" => "Queen h2",
         _ => panic!("Invalid pawn name for promotion!"),
     }
 }
 
 /// Workaround which works with static strings
-pub fn _black_promotion(pawn_name: &str) -> Figure {
+pub fn _black_promotion(pawn_name: &str) -> &str {
     match pawn_name {
-        "Pawn a7" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen a7",
-            player_color: PlayerColor::Black,
-        },
-        "Pawn b7" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen b7",
-            player_color: PlayerColor::Black,
-        },
-        "Pawn c7" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen c7",
-            player_color: PlayerColor::Black,
-        },
-        "Pawn d7" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen d7",
-            player_color: PlayerColor::Black,
-        },
-        "Pawn e7" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen e7",
-            player_color: PlayerColor::Black,
-        },
-        "Pawn f7" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen f7",
-            player_color: PlayerColor::Black,
-        },
-        "Pawn g7" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen g7",
-            player_color: PlayerColor::Black,
-        },
-        "Pawn h7" => Figure {
-            fig_type: FigType::Queen,
-            ass_name: "Queen h7",
-            player_color: PlayerColor::Black,
-        },
+        "Pawn a7" => "Queen a7",
+        "Pawn b7" => "Queen b7",
+        "Pawn c7" => "Queen c7",
+        "Pawn d7" => "Queen d7",
+        "Pawn e7" => "Queen e7",
+        "Pawn f7" => "Queen f7",
+        "Pawn g7" => "Queen g7",
+        "Pawn h7" => "Queen h7",
         _ => panic!("Invalid pawn name for promotion!"),
     }
 }

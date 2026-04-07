@@ -2,7 +2,7 @@ pub mod escape_menu;
 pub mod settings;
 use bevy::prelude::*;
 
-use crate::game_logic::{GameState, minmax_logic};
+use crate::game_logic::{minmax_logic, state_logic::GameState};
 use crate::utils::core_types::WoodenPiece;
 
 // UI-State of the game

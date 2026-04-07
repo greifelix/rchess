@@ -1,11 +1,8 @@
-use crate::utils::{core_types::*, figs_adjacent};
-use crate::{
-    game_logic::{
-        BLACK_KING_SP, Board, WHITE_KING_SP,
-        game_heuristics::{rate_promotion, rate_standard_move},
-    },
-    // game_logic::*,
+use crate::game_logic::{
+    board_logic::Board,
+    game_heuristics::{rate_promotion, rate_standard_move},
 };
+use crate::utils::{core_types::*, figs_adjacent};
 use bevy::platform::collections::HashSet;
 use itertools::Itertools;
 

@@ -17,7 +17,7 @@ use bevy::prelude::*;
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, MeshPickingPlugin))
-        .insert_resource(game_logic::GameState::new())
+        .insert_resource(game_logic::state_logic::GameState::new())
         .insert_resource(game_logic::minmax_logic::GeneratedMoves::new())
         .insert_resource(menu::settings::GameSettings::default())
         .init_state::<GuiState>()
