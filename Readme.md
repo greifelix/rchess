@@ -39,19 +39,13 @@ I did not look into it to much, cause I mainly wanted to have fun with my own id
 
 ## Credits
 
-Thanks to all the official bevy examples in the repo - it was kind of fun to adapt them for my own purposes :)
-
-
-Thanks to the author Theo Müller of this very nice blender chess asset!
-I tried to create my own, but only ended up making a donut...
-
-
-The asset itself I got from blenderkit, under the RF license:
+- Thanks to all the official bevy examples in the repo - it was kind of fun to adapt them for my own purposes :)
+- Thanks to the author Theo Müller of this very nice blender chess asset! I tried to create my own, but only ended up making a donut...
+- The asset itself I got from blenderkit, under the RF license (I just baked some textures so I could use them with the gltf format.):
 ```md
 This license protects the work in the way that it allows commercial use without mentioning the author, but doesn't allow for re-sale of the asset in the same form (eg. a 3D model sold as a 3D model or part of assetpack or game level on a marketplace).
 ```
-
-I just baked some textures so I could use them with the gltf format.
+- And finally thanks to the chess programming wiki and its contributors for information on Piece Square Table and material values! (See also game_heuristics.rs). The text of the Chess Programming Wiki is licensed under CC BY-SA 3.0
 
 
 

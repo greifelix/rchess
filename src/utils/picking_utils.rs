@@ -1,13 +1,13 @@
 use super::{
     ChessScene, FigType, SurfaceTile,
-    board_utils::{highlight_tiles, reset_tile_highlights},
+    board_graphics_utils::{highlight_tiles, reset_tile_highlights},
     tile_to_indices,
 };
-use crate::game_logic::GameState;
 use crate::game_logic::movement_logic::{ChessMove, MoveBuilder, maybe_add_rochade};
-
+use crate::game_logic::state_logic::GameState;
 use bevy::gltf::{Gltf, GltfMesh};
 use bevy::prelude::*;
+
 pub fn figure_picking(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -25,13 +25,14 @@ pub fn figure_picking(
             let clicked_tile = tile_to_indices(tile_name.as_str());
 
             // Case 1: We previously picked a valid figure and are about to move the figure now
-            if let Some((picked_pigure, from_row, from_col)) = game_state.chosen_figure {
+            if let Some((_picked_pigure, from_row, from_col)) = game_state.chosen_figure {
                 if let Some(chess_move) =
                     game_state.pick_is_valid((from_row, from_col), clicked_tile)
                 {
+                    let picked_asset_name = game_state.fat_board[(from_row, from_col)].unwrap();
                     game_state.execute_move(
                         &mut commands,
-                        picked_pigure.ass_name,
+                        picked_asset_name,
                         &chess_move,
                         &mut piece_query,
                         &chess_scene,
@@ -45,7 +46,7 @@ pub fn figure_picking(
             }
             // Case 2: We did not yet pick a valid figure and will pick the figure to be moved now
             else {
-                if let Some(fig) = game_state.board[clicked_tile]
+                if let Some(fig) = game_state.fat_board.board[clicked_tile]
                     && fig.player_color == game_state.player_turn
                 {
                     game_state.chosen_figure = Some((fig, clicked_tile.0, clicked_tile.1));
@@ -54,16 +55,20 @@ pub fn figure_picking(
                 }
 
                 let mut movelist: Vec<ChessMove> =
-                    MoveBuilder::new(clicked_tile, &game_state.board)
-                        .calculate_naive_moves(&game_state.board)
-                        ._filter_brute_force(&game_state.board)
+                    MoveBuilder::new(clicked_tile, &game_state.fat_board.board)
+                        .calculate_naive_moves(&game_state.fat_board.board)
+                        .filter_brute_force(&game_state.fat_board.board)
                         .moveset
                         .into_iter()
                         .collect();
 
                 // Only add the rochade possibility in case we picked the king
                 if game_state.chosen_figure.unwrap().0.fig_type == FigType::King {
-                    maybe_add_rochade(&game_state.player_turn, &mut movelist, &game_state.board);
+                    maybe_add_rochade(
+                        &game_state.player_turn,
+                        &mut movelist,
+                        &game_state.fat_board.board,
+                    );
                 }
 
                 let move_list_str: Vec<String> = movelist

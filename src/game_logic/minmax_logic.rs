@@ -1,21 +1,21 @@
-use std::i16;
-
+use crate::{
+    game_logic::{
+        board_logic::Board,
+        game_heuristics::evaluate_board,
+        movement_logic::{self, ChessMove},
+        state_logic::GameState,
+    },
+    menu::settings::GameSettings,
+    menu::{GuiState, settings::GameMode},
+    utils::core_types::{ChessScene, PlayerColor},
+};
 use bevy::{
     gltf::GltfMesh,
+    platform::collections::HashMap,
     prelude::*,
     tasks::{AsyncComputeTaskPool, Task, block_on, futures_lite::future},
 };
-
-use crate::menu::{GuiState, settings::GameMode};
-use crate::utils::type_utils::ChessScene;
-use crate::{
-    game_logic::{
-        Board, FigType, GameState, PlayerColor,
-        movement_logic::{self, ChessMove},
-    },
-    menu::settings::GameSettings,
-};
-use bevy::platform::collections::HashMap;
+use std::i16;
 
 pub fn player_vs_minmax_plugin(app: &mut App) {
     app.add_systems(
@@ -55,35 +55,7 @@ impl GeneratedMoves {
     }
 }
 
-pub fn evaluate_board(board: &Board, maximizer: &PlayerColor) -> i16 {
-    board
-        .0
-        .iter()
-        .flatten()
-        .map(|maybe_fig| {
-            if let Some(fig) = maybe_fig {
-                let score = match fig.fig_type {
-                    FigType::Pawn => 1,
-                    FigType::Rook => 5,
-                    FigType::Queen => 8,
-                    FigType::Bishop => 3,
-                    FigType::Knight => 3,
-                    FigType::King => 0, // King does not matter as it is never hit
-                };
-
-                if fig.player_color == *maximizer {
-                    score
-                } else {
-                    -score
-                }
-            } else {
-                0
-            }
-        })
-        .sum()
-}
-
-/// Spawns an asynchronous task to find a move for the black player, in case there is not one spawned yet
+/// Spawns an asynchronous task to find a move for the enemy player, in case there is not one spawned yet
 pub fn spawn_minmax_task(
     game_state: Res<GameState>,
     mut minmax_moves: ResMut<GeneratedMoves>,
@@ -96,7 +68,7 @@ pub fn spawn_minmax_task(
     {
         let task_pool = AsyncComputeTaskPool::get();
         let max_depth = game_settings.difficulty;
-        let board = game_state.board.clone();
+        let board = game_state.fat_board.board.clone();
         let task = task_pool.spawn(async move {
             let found_move = mmax(maximizer, max_depth, &board, i16::MIN, i16::MAX);
             found_move.max_move
@@ -120,7 +92,7 @@ pub fn retrieve_and_exec_minmax_result(
 
         if let Some(max_move) = status.flatten() {
             let (from_row, from_col) = max_move.from_tile;
-            let ass_name = game_state.board[(from_row, from_col)].unwrap().ass_name;
+            let ass_name = game_state.fat_board[(from_row, from_col)].unwrap();
 
             game_state.execute_move(
                 &mut commands,
@@ -136,7 +108,7 @@ pub fn retrieve_and_exec_minmax_result(
 }
 
 pub fn mmax(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16) -> MinMaxData {
-    let maxplayer_moves = movement_logic::calculate_all(board, player);
+    let maxplayer_moves = movement_logic::calculate_all_moves(board, player);
 
     let num_moves_left = maxplayer_moves.len();
     let mut max_value = alpha;
@@ -186,7 +158,7 @@ pub fn mmax(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16
 }
 
 pub fn mmin(player: PlayerColor, depth: u8, board: &Board, alpha: i16, beta: i16) -> i16 {
-    let minplayer_moves = movement_logic::calculate_all(board, player);
+    let minplayer_moves = movement_logic::calculate_all_moves(board, player);
     let num_moves_left = minplayer_moves.len();
 
     let mut min_value = beta;

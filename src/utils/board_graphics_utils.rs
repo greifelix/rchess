@@ -1,5 +1,5 @@
+use super::core_types::{CameraPosition, ChessScene, PlayerColor, SurfaceTile, WoodenPiece};
 use super::idx_to_coordinates;
-use super::type_utils::{CameraPosition, ChessScene, PlayerColor, SurfaceTile, WoodenPiece};
 
 use crate::menu::settings::{GameMode, GameSettings};
 use bevy::gltf::{Gltf, GltfExtras, GltfMesh};

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::type_utils::{CameraPosition, ChessScene, SurfaceTile, WhiteCamera, WoodenPiece};
+use super::core_types::{CameraPosition, ChessScene, SurfaceTile, WhiteCamera, WoodenPiece};
 
 pub fn environment_setup(mut commands: Commands) {
     // I need camera for UI for splitscreen mode

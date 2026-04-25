@@ -4,7 +4,7 @@ use bevy::{
 };
 
 use crate::menu::{SelectedColor, SelectedDifficulty, SelectedMode};
-use crate::utils::type_utils::{BlackCamera, CameraPosition, PlayerColor, WhiteCamera};
+use crate::utils::core_types::{BlackCamera, CameraPosition, PlayerColor, WhiteCamera};
 
 use super::{GuiState, NORMAL_BUTTON, Selected, TEXT_COLOR, button_render_system};
 use bevy::color::palettes::css::BURLYWOOD;
