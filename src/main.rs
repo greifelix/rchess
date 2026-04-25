@@ -8,7 +8,7 @@ use crate::menu::{
 };
 use crate::minmax_logic::player_vs_minmax_plugin;
 use crate::utils::{
-    board_utils::set_camera_viewports,
+    board_graphics_utils::set_camera_viewports,
     picking_utils::figure_picking,
     setup_utils::{board_setup, environment_setup},
 };

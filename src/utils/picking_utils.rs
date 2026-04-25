@@ -1,6 +1,6 @@
 use super::{
     ChessScene, FigType, SurfaceTile,
-    board_utils::{highlight_tiles, reset_tile_highlights},
+    board_graphics_utils::{highlight_tiles, reset_tile_highlights},
     tile_to_indices,
 };
 use crate::game_logic::movement_logic::{ChessMove, MoveBuilder, maybe_add_rochade};

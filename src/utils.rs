@@ -1,4 +1,4 @@
-pub mod board_utils;
+pub mod board_graphics_utils;
 pub mod core_types;
 pub mod picking_utils;
 pub mod setup_utils;

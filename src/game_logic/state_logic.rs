@@ -9,7 +9,7 @@ use crate::game_logic::board_logic::Board;
 use crate::game_logic::movement_logic::{ChessMove, MoveType};
 
 use crate::utils::{
-    board_utils::queen_spawner,
+    board_graphics_utils::queen_spawner,
     core_types::{ChessScene, Figure, PlayerColor, WHITE_KING_SP},
     idx_to_coordinates, pawn_promotion,
 };
